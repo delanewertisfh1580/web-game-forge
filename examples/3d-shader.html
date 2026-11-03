@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Shader — my-engine example</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: system-ui, sans-serif;
+      color: #eee;
+    }
+    h1 { margin-bottom: 1rem; font-size: 1.4rem; opacity: 0.8; }
+    #game { border: 1px solid #333; border-radius: 4px; overflow: hidden; }
+    .info { margin-top: 1rem; font-size: 0.85rem; opacity: 0.5; }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "my-engine": "../engine/index.js",
+      "pixi.js": "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.mjs",
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
+      "json5": "https://cdn.jsdelivr.net/npm/json5@2.2.3/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>🌊 3D Shader Demo</h1>
+  <div id="game"></div>
+  <p class="info">Wave shader on a plane + 3D particle system. Powered by Three.js + my-engine.</p>
+
+  <script type="module">
+    import { createGame } from 'my-engine';
+    import * as THREE from 'three';
+    import { createShaderMaterial } from 'my-engine';
+
+    // Create a 3D game
+    const game = await createGame({
+      mode: '3d',
+      width: 800,
+      height: 500,
+      backgroundColor: 0x0a0a1a,
+      particleCapacity: 2000,
+    });
+
+    const { renderer, scene, camera } = game.ctx;
+
+    // Add lights
+    renderer.addLight('ambient', { intensity: 0.4 });
+    renderer.addLight('directional', {
+      position: new THREE.Vector3(2, 3, 4),
+      intensity: 1.0,
+    });
+
+    // Create wave shader material
+    const waveMaterial = createShaderMaterial('wave', THREE);
+    waveMaterial.uniforms.uAmplitude.value = 0.4;
+    waveMaterial.uniforms.uFrequency.value = 3.0;
+    waveMaterial.uniforms.uColor1.value = new THREE.Vector3(0.05, 0.15, 0.6);
+    waveMaterial.uniforms.uColor2.value = new THREE.Vector3(0.8, 0.1, 0.4);
+
+    // Add a plane with the wave shader
+    const planeGeom = new THREE.PlaneGeometry(6, 6, 64, 64);
+    const planeMesh = renderer.addMesh(planeGeom, waveMaterial, {
+      rotation: new THREE.Euler(-Math.PI * 0.35, 0, 0),
+      position: new THREE.Vector3(0, -0.5, 0),
+    });
+
+    // Add a rotating icosahedron with dissolve shader
+    const dissolveMaterial = createShaderMaterial('dissolve', THREE);
+    dissolveMaterial.uniforms.uThreshold.value = 0.35;
+    dissolveMaterial.uniforms.uEdgeColor.value = new THREE.Vector3(1.0, 0.3, 0.0);
+    dissolveMaterial.uniforms.uBaseColor.value = new THREE.Vector3(0.1, 0.5, 0.9);
+
+    const icoGeom = new THREE.IcosahedronGeometry(0.8, 3);
+    const icoMesh = renderer.addMesh(icoGeom, dissolveMaterial, {
+      position: new THREE.Vector3(0, 1.2, 0),
+    });
+
+    // Register shaders for time uniform updates
+    await game.setShader('wave', waveMaterial);
+    await game.setShader('dissolve', dissolveMaterial);
+
+    // Add 3D particle system
+    const particles = game.addParticleSystem({
+      capacity: 1500,
+      emitRate: 40,
+      x: 0, y: 2, z: 0,
+      spread: 1.5,
+      vy: -0.5,
+      velocitySpread: 0.8,
+      life: 3,
+      gravity: -0.5,
+      color: [0.3, 0.8, 1.0],
+      size: 0.04,
+    });
+
+    // Rotate the icosahedron
+    game.onUpdate((ctx, dt) => {
+      icoMesh.rotation.x += dt * 0.5;
+      icoMesh.rotation.y += dt * 0.7;
+    });
+
+    // Camera position
+    camera.position.set(0, 1.5, 6);
+    camera.lookAt(0, 0.5, 0);
+
+    game.start();
+
+    window.addEventListener('beforeunload', () => game.destroy());
+  </script>
+</body>
+</html>

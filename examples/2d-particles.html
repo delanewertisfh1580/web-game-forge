@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2D Particles — my-engine example</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d0d1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: system-ui, sans-serif;
+      color: #eee;
+    }
+    h1 { margin-bottom: 1rem; font-size: 1.4rem; opacity: 0.8; }
+    #game { border: 1px solid #333; border-radius: 4px; overflow: hidden; }
+    .info { margin-top: 1rem; font-size: 0.85rem; opacity: 0.5; }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "my-engine": "../engine/index.js",
+      "pixi.js": "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.mjs",
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
+      "json5": "https://cdn.jsdelivr.net/npm/json5@2.2.3/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>🎮 2D Particles Demo</h1>
+  <div id="game"></div>
+  <p class="info">Particles flowing upward with gravity and fade-out. Powered by PixiJS 8 + my-engine.</p>
+
+  <script type="module">
+    import { createGame } from 'my-engine';
+
+    // Create a 2D game with overrides
+    const game = await createGame({
+      mode: '2d',
+      width: 800,
+      height: 500,
+      backgroundColor: 0x0d0d2b,
+      particleCapacity: 2000,
+    });
+
+    // Add a particle system — fire-like emitter at bottom center
+    const emitter = game.addParticleSystem({
+      capacity: 1500,
+      emitRate: 80,
+      x: 400,
+      y: 450,
+      vx: 0,
+      vxSpread: 60,
+      vy: -120,
+      vySpread: 40,
+      life: 2.5,
+      gravity: -20, // negative = upward pull
+      radius: 4,
+      color: 0xff6633,
+      fadeOut: true,
+      scaleStart: 1.2,
+      scaleEnd: 0.1,
+    });
+
+    // Second emitter — sparkles at top
+    const emitter2 = game.addParticleSystem({
+      capacity: 500,
+      emitRate: 20,
+      x: 400,
+      y: 100,
+      vx: 0,
+      vxSpread: 200,
+      vy: 30,
+      vySpread: 20,
+      life: 1.5,
+      gravity: 80,
+      radius: 2,
+      color: 0x44aaff,
+      fadeOut: true,
+      scaleStart: 1,
+      scaleEnd: 0,
+    });
+
+    // Add a simple update hook to draw a ground line
+    game.onUpdate((ctx, dt) => {
+      // Could add custom logic here
+    });
+
+    game.start();
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => game.destroy());
+  </script>
+</body>
+</html>

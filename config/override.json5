@@ -1,0 +1,23 @@
+// Override config — extends base.json5 and changes only what's needed.
+{
+  $extend: './base.json5',
+
+  // Override dimensions
+  width: 640,
+  height: 400,
+
+  // Different background
+  backgroundColor: 0x2d1b69,
+
+  // Fewer particles for this prototype
+  particleCapacity: 500,
+
+  // Override particle defaults
+  particles: {
+    emitRate: 30,
+    life: 3,
+    color: 0xaa44ff,
+    radius: 5,
+    gravity: 30,
+  },
+}

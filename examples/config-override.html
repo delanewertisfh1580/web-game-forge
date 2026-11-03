@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Config Override — my-engine example</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: system-ui, sans-serif;
+      color: #eee;
+    }
+    h1 { margin-bottom: 0.5rem; font-size: 1.4rem; opacity: 0.8; }
+    #game { border: 1px solid #333; border-radius: 4px; overflow: hidden; }
+    .info { margin-top: 1rem; font-size: 0.85rem; opacity: 0.5; max-width: 600px; text-align: center; line-height: 1.5; }
+    pre {
+      margin-top: 1rem;
+      background: #1a1a2e;
+      padding: 1rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      max-width: 640px;
+      width: 100%;
+      overflow-x: auto;
+      color: #aaa;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "my-engine": "../engine/index.js",
+      "pixi.js": "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.mjs",
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
+      "json5": "https://cdn.jsdelivr.net/npm/json5@2.2.3/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>⚙️ Config Override Demo</h1>
+  <div id="game"></div>
+  <p class="info">
+    Loads <code>config/override.json5</code> which uses <code>$extend: './base.json5'</code>.
+    Only deltas are specified — base values are inherited automatically.
+  </p>
+  <pre id="config-output">Loading config...</pre>
+
+  <script type="module">
+    import { createGame, loadJson5Config } from 'my-engine';
+
+    // Load the override config — it extends base.json5 via $extend
+    const loadedConfig = await loadJson5Config('../config/override.json5');
+
+    // Show what was loaded (base merged with overrides)
+    document.getElementById('config-output').textContent =
+      'Loaded config (base + overrides merged):\n' + JSON.stringify(loadedConfig, null, 2);
+
+    // Create game — loadedConfig already has all base values merged in
+    // We can further override at createGame level if needed
+    const game = await createGame({
+      ...loadedConfig,
+      // Additional runtime overrides (if any)
+      mount: '#game',
+    });
+
+    // Add particles using the merged config values
+    const emitter = game.addParticleSystem({
+      capacity: game.config.particleCapacity,
+      emitRate: game.config.particles.emitRate,
+      x: game.config.width / 2,
+      y: game.config.height - 50,
+      vx: 0,
+      vxSpread: 80,
+      vy: -100,
+      vySpread: 30,
+      life: game.config.particles.life,
+      gravity: game.config.particles.gravity,
+      radius: game.config.particles.radius,
+      color: game.config.particles.color,
+      fadeOut: true,
+      scaleStart: 1.5,
+      scaleEnd: 0.1,
+    });
+
+    // Update the display with final config
+    setTimeout(() => {
+      document.getElementById('config-output').textContent =
+        'Final game config (from JSON5 $extend + createGame merge):\n' +
+        JSON.stringify(game.config, null, 2);
+    }, 100);
+
+    game.start();
+
+    window.addEventListener('beforeunload', () => game.destroy());
+  </script>
+</body>
+</html>

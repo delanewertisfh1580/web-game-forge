@@ -1,0 +1,44 @@
+// Base configuration for game engine prototypes.
+// Extend this config using $extend in child configs.
+{
+  // Canvas dimensions
+  width: 800,
+  height: 600,
+
+  // Background color (hex number)
+  backgroundColor: 0x1a1a2e,
+
+  // Max particles per system
+  particleCapacity: 1000,
+
+  // Render mode: '2d' or '3d'
+  mode: '2d',
+
+  // Default particle settings
+  particles: {
+    emitRate: 50,
+    life: 2,
+    gravity: 50,
+    radius: 3,
+    color: 0xffaa44,
+    fadeOut: true,
+    scaleStart: 1,
+    scaleEnd: 0.2,
+  },
+
+  // Available shaders (3D mode)
+  shaders: {
+    wave: {
+      amplitude: 0.3,
+      frequency: 4.0,
+      color1: [0.1, 0.3, 0.8],
+      color2: [0.9, 0.2, 0.5],
+    },
+    dissolve: {
+      threshold: 0.3,
+      edgeWidth: 0.1,
+      edgeColor: [1.0, 0.5, 0.0],
+      baseColor: [0.2, 0.6, 1.0],
+    },
+  },
+}
