@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>__GAME_NAME__ — my-engine prototype</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh;
+      font-family: system-ui, sans-serif; color: #eee;
+    }
+    h1 { margin-bottom: 0.5rem; font-size: 1.2rem; opacity: 0.7; }
+    #game { border: 1px solid #333; border-radius: 4px; overflow: hidden; }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "my-engine": "../../engine/index.js",
+      "my-engine/boot": "../../engine/boot.js",
+      "pixi.js": "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.mjs",
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
+      "json5": "https://cdn.jsdelivr.net/npm/json5@2.2.3/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>__GAME_NAME__</h1>
+  <div id="game"></div>
+
+  <script type="module" src="../../engine/boot.js"></script>
+  <script type="module">
+    import { createGame, loadJson5Config } from 'my-engine';
+
+    // Load config (optional — remove if not needed)
+    // const cfg = await loadJson5Config('./config.json5');
+
+    const game = await createGame({
+      mode: '2d',
+      width: 800,
+      height: 600,
+      backgroundColor: 0x1a1a2e,
+      input: {
+        // jump: ['Space', 'KeyW'],
+        // fire: ['Mouse0'],
+      },
+      debug: true,
+    });
+
+    // Setup HUD
+    game.hud.setText('hello', 'Hello from __GAME_NAME__!', { position: 'top-left' });
+
+    // Add particles for visual feedback
+    game.addParticleSystem({
+      capacity: 300,
+      emitRate: 20,
+      x: 400, y: 300,
+      vx: 0, vxSpread: 50,
+      vy: -50, vySpread: 30,
+      life: 2, gravity: 20,
+      radius: 3, color: 0x44aaff,
+    });
+
+    game.start();
+    window.addEventListener('beforeunload', () => game.destroy());
+  </script>
+</body>
+</html>

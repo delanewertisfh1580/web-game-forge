@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Twin-Stick Shooter — my-engine example</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui, sans-serif; color: #eee; }
+    h1 { margin-bottom: 0.5rem; font-size: 1.2rem; opacity: 0.7; }
+    #game { border: 1px solid #333; border-radius: 4px; overflow: hidden; cursor: crosshair; }
+    .info { margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.5; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "my-engine": "../engine/index.js",
+      "pixi.js": "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.mjs",
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
+      "json5": "https://cdn.jsdelivr.net/npm/json5@2.2.3/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>🔫 Twin-Stick Shooter</h1>
+  <div id="game"></div>
+  <p class="info">WASD to move, Mouse to aim, Click to shoot. Survive!</p>
+  <script type="module" src="../engine/boot.js"></script>
+  <script type="module">
+    import { createGame, Pool, SpatialHash } from 'my-engine';
+    import * as PIXI from 'pixi.js';
+
+    const W = 800, H = 600;
+    const game = await createGame({
+      mode: '2d', width: W, height: H,
+      backgroundColor: 0x0d0d2b,
+      seed: 42, debug: true,
+      input: { fire: ['Mouse0'], restart: ['KeyR'] },
+    });
+
+    const { renderer } = game.ctx;
+    const world = new PIXI.Container();
+    renderer.app.stage.addChild(world);
+
+    // Player
+    const player = new PIXI.Graphics();
+    player.circle(0, 0, 14); player.fill(0x44aaff);
+    player.x = W/2; player.y = H/2;
+    world.addChild(player);
+
+    // Aim line
+    const aimLine = new PIXI.Graphics();
+    world.addChild(aimLine);
+
+    // Bullet pool
+    const bullets = new Pool(
+      () => { const g = new PIXI.Graphics(); g.circle(0,0,4); g.fill(0xffff44); g.visible = false; world.addChild(g); return { gfx: g, vx:0, vy:0, life:0, active:false }; },
+      (b) => { b.active = true; b.life = 1.5; b.gfx.visible = true; }
+    );
+
+    // Enemy pool
+    const enemies = new Pool(
+      () => { const g = new PIXI.Graphics(); g.rect(-10,-10,20,20); g.fill(0xff4444); g.visible = false; world.addChild(g); return { gfx: g, x:0, y:0, hp:1, active:false }; },
+      (e) => { e.active = true; e.hp = 1; e.gfx.visible = true; }
+    );
+
+    const grid = new SpatialHash(64);
+    let score = 0, spawnTimer = 0, gameOver = false;
+
+    game.hud.setText('score', 'Score: 0', { position: 'top-left' });
+    game.hud.setText('entities', 'Entities: 0', { position: 'top-right' });
+
+    function spawnEnemy() {
+      const e = enemies.acquire();
+      const side = game.rng.int(0, 3);
+      if (side === 0) { e.x = game.rng.range(0, W); e.y = -20; }
+      else if (side === 1) { e.x = W + 20; e.y = game.rng.range(0, H); }
+      else if (side === 2) { e.x = game.rng.range(0, W); e.y = H + 20; }
+      else { e.x = -20; e.y = game.rng.range(0, H); }
+      e.gfx.x = e.x; e.gfx.y = e.y;
+    }
+
+    function shoot() {
+      const b = bullets.acquire();
+      const dx = game.input.mouse.x - player.x;
+      const dy = game.input.mouse.y - player.y;
+      const len = Math.sqrt(dx*dx + dy*dy) || 1;
+      b.vx = (dx/len) * 500;
+      b.vy = (dy/len) * 500;
+      b.gfx.x = player.x;
+      b.gfx.y = player.y;
+    }
+
+    game.onUpdate((ctx, dt) => {
+      if (gameOver) {
+        if (game.input.isPressed('restart')) resetGame();
+        return;
+      }
+
+      // Movement
+      const axis = game.input.axis();
+      player.x += axis.x * 250 * dt;
+      player.y += axis.y * 250 * dt;
+      player.x = Math.max(14, Math.min(W - 14, player.x));
+      player.y = Math.max(14, Math.min(H - 14, player.y));
+
+      // Aim
+      aimLine.clear();
+      aimLine.moveTo(player.x, player.y);
+      aimLine.lineTo(game.input.mouse.x, game.input.mouse.y);
+      aimLine.stroke({ width: 1, color: 0x444466 });
+
+      // Shoot
+      if (game.input.isPressed('fire')) shoot();
+
+      // Spawn enemies
+      spawnTimer -= dt;
+      if (spawnTimer <= 0) {
+        spawnEnemy();
+        spawnTimer = Math.max(0.3, 2 - score * 0.02);
+      }
+
+      // Update bullets
+      grid.clear();
+      bullets.forEach(b => {
+        b.life -= dt;
+        if (b.life <= 0) { b.active = false; b.gfx.visible = false; bullets.release(b); return; }
+        b.gfx.x += b.vx * dt;
+        b.gfx.y += b.vy * dt;
+        grid.insert({ x: b.gfx.x - 4, y: b.gfx.y - 4, w: 8, h: 8 }, b);
+      });
+
+      // Update enemies
+      enemies.forEach(e => {
+        const dx = player.x - e.x;
+        const dy = player.y - e.y;
+        const len = Math.sqrt(dx*dx + dy*dy) || 1;
+        e.x += (dx/len) * 80 * dt;
+        e.y += (dy/len) * 80 * dt;
+        e.gfx.x = e.x; e.gfx.y = e.y;
+
+        // Check collision with player
+        if (Math.abs(player.x - e.x) < 20 && Math.abs(player.y - e.y) < 20) {
+          gameOver = true;
+          game.hud.setText('gameover', '💀 GAME OVER — Press R to restart', { position: 'center', style: 'font-size:24px;color:#f44;' });
+          game.camera.shake(0.5, 10);
+        }
+      });
+
+      // Bullet-enemy collisions via spatial hash
+      enemies.forEach(e => {
+        const nearby = grid.query({ x: e.x - 14, y: e.y - 14, w: 28, h: 28 });
+        for (const b of nearby) {
+          if (!b.active) continue;
+          const dx = b.gfx.x - e.x;
+          const dy = b.gfx.y - e.y;
+          if (Math.abs(dx) < 14 && Math.abs(dy) < 14) {
+            e.hp--;
+            b.active = false; b.gfx.visible = false; bullets.release(b);
+            game.camera.shake(0.1, 3);
+            if (e.hp <= 0) {
+              e.active = false; e.gfx.visible = false; enemies.release(e);
+              score += 10;
+              game.hud.setText('score', `Score: ${score}`);
+            }
+            break;
+          }
+        }
+      });
+
+      game.hud.setText('entities', `Bullets: ${bullets.activeCount} | Enemies: ${enemies.activeCount}`);
+    });
+
+    function resetGame() {
+      score = 0; spawnTimer = 0; gameOver = false;
+      bullets.releaseAll();
+      bullets.forEach(b => { b.gfx.visible = false; });
+      enemies.releaseAll();
+      enemies.forEach(e => { e.gfx.visible = false; });
+      player.x = W/2; player.y = H/2;
+      game.hud.setText('score', 'Score: 0');
+      game.hud.removeText('gameover');
+    }
+
+    game.start();
+    window.addEventListener('beforeunload', () => game.destroy());
+  </script>
+</body>
+</html>

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Platformer — my-engine example</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui, sans-serif; color: #eee; }
+    h1 { margin-bottom: 0.5rem; font-size: 1.2rem; opacity: 0.7; }
+    #game { border: 1px solid #333; border-radius: 4px; overflow: hidden; }
+    .info { margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.5; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "my-engine": "../engine/index.js",
+      "pixi.js": "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.mjs",
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
+      "json5": "https://cdn.jsdelivr.net/npm/json5@2.2.3/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>🏃 Platformer Demo</h1>
+  <div id="game"></div>
+  <p class="info">WASD/Arrows to move, Space to jump, Esc to pause, R to restart. Collect coins!</p>
+  <script type="module" src="../engine/boot.js"></script>
+  <script type="module">
+    import { createGame, SpatialHash } from 'my-engine';
+    import * as PIXI from 'pixi.js';
+
+    const TILE = 32;
+    const MAP = [
+      '........................',
+      '........................',
+      '........................',
+      '........C.............C.',
+      '.......................',
+      '......#####............',
+      '.......................',
+      '...C..........####....',
+      '.......................',
+      '.####.................',
+      '...........C..........',
+      '........######........',
+      '......................',
+      'P..C..................',
+      '######################',
+    ];
+
+    const game = await createGame({
+      mode: '2d',
+      width: 800,
+      height: 480,
+      backgroundColor: 0x1a1a3e,
+      seed: 12345,
+      debug: true,
+      input: {
+        left: ['KeyA', 'ArrowLeft'],
+        right: ['KeyD', 'ArrowRight'],
+        jump: ['Space', 'KeyW', 'ArrowUp'],
+        pause: ['Escape'],
+        restart: ['KeyR'],
+      },
+    });
+
+    const { renderer, config } = game.ctx;
+    const world = new PIXI.Container();
+    renderer.app.stage.addChild(world);
+
+    // Parse map
+    const walls = [];
+    const coins = [];
+    let playerStart = { x: 0, y: 0 };
+    const grid = new SpatialHash(TILE);
+
+    for (let row = 0; row < MAP.length; row++) {
+      for (let col = 0; col < MAP[row].length; col++) {
+        const ch = MAP[row][col];
+        const x = col * TILE, y = row * TILE;
+        if (ch === '#') {
+          const gfx = new PIXI.Graphics();
+          gfx.rect(x, y, TILE, TILE);
+          gfx.fill(0x4a4a6a);
+          world.addChild(gfx);
+          walls.push({ x, y, w: TILE, h: TILE });
+        } else if (ch === 'C') {
+          const gfx = new PIXI.Graphics();
+          gfx.circle(x + TILE/2, y + TILE/2, 8);
+          gfx.fill(0xffcc00);
+          world.addChild(gfx);
+          coins.push({ x: x + TILE/2, y: y + TILE/2, gfx, collected: false });
+        } else if (ch === 'P') {
+          playerStart = { x: x + TILE/2, y: y + TILE/2 };
+        }
+      }
+    }
+
+    // Player
+    const player = new PIXI.Graphics();
+    player.rect(-12, -16, 24, 32);
+    player.fill(0x44aaff);
+    player.x = playerStart.x;
+    player.y = playerStart.y;
+    world.addChild(player);
+
+    // Physics state
+    const phys = { vx: 0, vy: 0, onGround: false };
+    const GRAVITY = 800;
+    const JUMP_VEL = -350;
+    const MOVE_SPEED = 200;
+    let score = 0;
+
+    // HUD
+    game.hud.setText('score', 'Score: 0', { position: 'top-left' });
+    game.hud.setText('hint', 'WASD/Arrows + Space', { position: 'bottom-center' });
+
+    // Scenes
+    game.scenes.add('menu', {
+      enter() {
+        game.hud.setText('title', '🏃 PLATFORMER', { position: 'center', style: 'font-size:32px;' });
+        game.hud.setText('start', 'Press ENTER to start', { position: 'center', style: 'font-size:16px;margin-top:60px;' });
+      },
+      update(dt) {
+        if (game.input.isPressed('jump')) {
+          game.scenes.go('play', { transition: 'fade', duration: 0.3 });
+        }
+      },
+      exit() {
+        game.hud.removeText('title');
+        game.hud.removeText('start');
+      },
+    });
+
+    game.scenes.add('play', {
+      enter() {
+        resetGame();
+      },
+      update(dt) {
+        // Input
+        const axis = game.input.axis();
+        phys.vx = axis.x * MOVE_SPEED;
+        if (game.input.isPressed('jump') && phys.onGround) {
+          phys.vy = JUMP_VEL;
+          phys.onGround = false;
+        }
+        if (game.input.isPressed('pause')) {
+          game.pause();
+          game.hud.setText('paused', 'PAUSED (Esc to resume)', { position: 'center', style: 'font-size:24px;' });
+        }
+        if (game.input.isPressed('restart')) {
+          resetGame();
+        }
+
+        // Gravity
+        phys.vy += GRAVITY * dt;
+
+        // Move X
+        player.x += phys.vx * dt;
+        resolveCollisions('x');
+
+        // Move Y
+        player.y += phys.vy * dt;
+        phys.onGround = false;
+        resolveCollisions('y');
+
+        // Coin collection
+        for (const coin of coins) {
+          if (coin.collected) continue;
+          const dx = player.x - coin.x;
+          const dy = player.y - coin.y;
+          if (Math.sqrt(dx*dx + dy*dy) < 20) {
+            coin.collected = true;
+            coin.gfx.visible = false;
+            score += 10;
+            game.hud.setText('score', `Score: ${score}`);
+            game.events.emit('coin:collect', coin);
+            // Particle burst
+            game.addParticleSystem({
+              capacity: 20, emitRate: 200,
+              x: coin.x, y: coin.y,
+              vx: 0, vxSpread: 100, vy: 0, vySpread: 100,
+              life: 0.5, gravity: 0, radius: 3, color: 0xffcc00,
+            });
+          }
+        }
+
+        // Camera follow
+        game.camera.follow({ x: player.x - config.width/2, y: player.y - config.height/2 }, { lerp: 0.15 });
+
+        // Win condition
+        if (coins.every(c => c.collected)) {
+          game.hud.setText('win', '🎉 ALL COINS COLLECTED!', { position: 'center', style: 'font-size:24px;color:#4f4;' });
+        }
+
+        // Fall off map
+        if (player.y > MAP.length * TILE + 100) {
+          resetGame();
+        }
+      },
+    });
+
+    function resolveCollisions(axis) {
+      const pb = { x: player.x - 12, y: player.y - 16, w: 24, h: 32 };
+      grid.clear();
+      for (const w of walls) grid.insert(w, w);
+      const nearby = grid.query(pb);
+      for (const wall of nearby) {
+        if (pb.x < wall.x + wall.w && pb.x + pb.w > wall.x &&
+            pb.y < wall.y + wall.h && pb.y + pb.h > wall.y) {
+          if (axis === 'x') {
+            if (phys.vx > 0) player.x = wall.x - 12;
+            else if (phys.vx < 0) player.x = wall.x + wall.w + 12;
+            phys.vx = 0;
+          } else {
+            if (phys.vy > 0) { player.y = wall.y - 16; phys.onGround = true; }
+            else if (phys.vy < 0) player.y = wall.y + wall.h + 16;
+            phys.vy = 0;
+          }
+          pb.x = player.x - 12; pb.y = player.y - 16;
+        }
+      }
+    }
+
+    function resetGame() {
+      player.x = playerStart.x;
+      player.y = playerStart.y;
+      phys.vx = 0; phys.vy = 0; phys.onGround = false;
+      score = 0;
+      game.hud.setText('score', 'Score: 0');
+      game.hud.removeText('win');
+      for (const coin of coins) {
+        coin.collected = false;
+        coin.gfx.visible = true;
+      }
+    }
+
+    // Resume handler
+    game.events.on('game:resume', () => {
+      game.hud.removeText('paused');
+    });
+
+    // Start with menu
+    await game.scenes.go('menu');
+    game.start();
+    window.addEventListener('beforeunload', () => game.destroy());
+  </script>
+</body>
+</html>

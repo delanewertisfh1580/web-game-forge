@@ -1,8 +1,6 @@
 /**
- * Particles module — re-exports particle systems for both 2D and 3D.
+ * Particles module — particle emitter factories for 2D and 3D.
  */
-export { Renderer2D } from './renderer2d.js';
-export { Renderer3D } from './renderer3d.js';
 
 /**
  * Simple particle emitter config helper for 2D.
