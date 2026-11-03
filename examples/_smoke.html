@@ -170,6 +170,32 @@
 
     // === createGame tests ===
 
+    await runTest('Regression: createGame resolves without errors', async () => {
+      // Перехватываем unhandledrejection на время теста
+      let rejection = null;
+      const handler = (e) => { rejection = e.reason; };
+      window.addEventListener('unhandledrejection', handler);
+
+      const game = await createGame({ mode: '2d', width: 100, height: 100, mount: '#game' });
+
+      // Дать шанс микротаскам выполниться (чтобы поймать отложенные rejection)
+      await new Promise(r => setTimeout(r, 0));
+      window.removeEventListener('unhandledrejection', handler);
+
+      if (rejection) {
+        game.destroy();
+        throw new Error(`createGame produced unhandled rejection: ${rejection.message || rejection}`);
+      }
+
+      // ready() должен резолвиться с game
+      const resolved = await game.ready();
+      if (resolved !== game) {
+        game.destroy();
+        throw new Error('ready() did not resolve with game instance');
+      }
+      game.destroy();
+    });
+
     await runTest('createGame: 2D mode', async () => {
       const game = await createGame({ mode: '2d', width: 100, height: 100, mount: '#game' });
       if (!game.ctx) throw new Error('No ctx');
