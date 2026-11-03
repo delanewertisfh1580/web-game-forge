@@ -148,6 +148,10 @@ export async function createGame(userConfig = {}) {
     defaults: config.saveDefaults ?? {},
   });
 
+  // Ready promise — resolved at end of createGame (NOT in start)
+  let _readyResolveFn = null;
+  const _readyPromise = new Promise((resolve) => { _readyResolveFn = resolve; });
+
   // === Game object (needed before debug so debug gets real game) ===
   const game = {
     ctx,
@@ -185,12 +189,8 @@ export async function createGame(userConfig = {}) {
       return game;
     },
 
-    // Ready promise — resolved at end of createGame (NOT in start)
-    _readyResolve: null,
-    _readyPromise: new Promise((resolve) => { game._readyResolve = resolve; }),
-
     ready() {
-      return game._readyPromise;
+      return _readyPromise;
     },
 
     // Hooks installation flag (fix #1: prevent duplicate hooks on start/resume)
@@ -469,7 +469,7 @@ export async function createGame(userConfig = {}) {
   }
 
   // Resolve ready promise (fix #2: ready resolves here, not in start)
-  game._readyResolve(game);
+  _readyResolveFn(game);
 
   return game;
 }

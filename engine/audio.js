@@ -26,10 +26,10 @@ export function createAudioManager() {
     return ctx;
   }
 
-  function unlock() {
+  async function unlock() {
     if (unlocked) return;
     const c = ensureContext();
-    if (c.state === 'suspended') c.resume();
+    if (c.state === 'suspended') await c.resume();
     // Play silent buffer to unlock on iOS
     const buf = c.createBuffer(1, 1, 22050);
     const src = c.createBufferSource();
@@ -92,16 +92,16 @@ export function createAudioManager() {
      * @param {boolean} [options.loop=false]
      * @param {number} [options.volume=1]
      * @param {number} [options.rate=1]
-     * @returns {AudioBufferSourceNode|null}
+     * @returns {Promise<AudioBufferSourceNode|null>}
      */
-    play(name, options = {}) {
+    async play(name, options = {}) {
       const buffer = buffers.get(name);
       if (!buffer) {
         console.warn(`[audio] Sound "${name}" not loaded`);
         return null;
       }
       const c = ensureContext();
-      if (c.state === 'suspended') c.resume();
+      if (c.state === 'suspended') await c.resume();
 
       const source = c.createBufferSource();
       source.buffer = buffer;
