@@ -28,15 +28,14 @@ export function createAudioManager() {
 
   async function unlock() {
     if (unlocked) return;
+    unlocked = true;
     const c = ensureContext();
-    if (c.state === 'suspended') await c.resume();
-    // Play silent buffer to unlock on iOS
+    if (c.state === 'suspended') { try { await c.resume(); } catch {} }
     const buf = c.createBuffer(1, 1, 22050);
     const src = c.createBufferSource();
     src.buffer = buf;
     src.connect(c.destination);
     src.start(0);
-    unlocked = true;
   }
 
   // Auto-unlock on first user gesture
@@ -101,7 +100,6 @@ export function createAudioManager() {
         return null;
       }
       const c = ensureContext();
-      if (c.state === 'suspended') await c.resume();
 
       const source = c.createBufferSource();
       source.buffer = buffer;
@@ -113,7 +111,11 @@ export function createAudioManager() {
       source.connect(gain);
       gain.connect(masterGain);
 
-      source.start(0);
+      if (c.state === 'suspended') {
+        c.resume().then(() => { try { source.start(0); } catch {} });
+      } else {
+        source.start(0);
+      }
       const id = `${name}_${Date.now()}_${Math.random()}`;
       sources.set(id, { source, gain });
       source.onended = () => sources.delete(id);
