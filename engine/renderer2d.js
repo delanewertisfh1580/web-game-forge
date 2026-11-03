@@ -49,10 +49,9 @@ export class Renderer2D {
 
   async loadSpriteSheet(url, options = {}) {
     const texture = await PIXI.Assets.load(url);
-    if (options.animations && texture.baseTexture) {
-      // For sprite sheets with frame data
-      const sheet = await PIXI.Assets.load(url);
-      return { texture: sheet, animations: sheet.animations || {} };
+    // In PixiJS v8, sprite sheet data is on texture itself (no baseTexture)
+    if (options.animations && texture.animations) {
+      return { texture, animations: texture.animations };
     }
     return { texture };
   }
@@ -148,7 +147,8 @@ export class Renderer2D {
       this.removeParticleContainer(id);
     }
     if (this.app) {
-      this.app.destroy(true, { children: true });
+      // PixiJS v8 destroy signature
+      try { this.app.destroy(true); } catch { try { this.app.destroy(); } catch {} }
       this.app = null;
     }
   }

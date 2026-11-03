@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Orbit — my-engine example</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui, sans-serif; color: #eee; }
+    h1 { margin-bottom: 0.5rem; font-size: 1.2rem; opacity: 0.7; }
+    #game { border: 1px solid #333; border-radius: 4px; overflow: hidden; }
+    .info { margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.5; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "my-engine": "../engine/index.js",
+      "pixi.js": "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.mjs",
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
+      "json5": "https://cdn.jsdelivr.net/npm/json5@2.2.3/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>🌍 3D Orbit Shooter</h1>
+  <div id="game"></div>
+  <p class="info">Drag to orbit, scroll to zoom. Click to shoot spheres at the model. Score hits!</p>
+  <script type="module" src="../engine/boot.js"></script>
+  <script type="module">
+    import { createGame } from 'my-engine';
+    import * as THREE from 'three';
+
+    const game = await createGame({
+      mode: '3d', width: 800, height: 500,
+      backgroundColor: 0x0a0a2a,
+      debug: true,
+    });
+
+    const { renderer, scene, camera: threeCam } = game.ctx;
+
+    // Lights
+    renderer.addLight('ambient', { intensity: 0.5 });
+    renderer.addLight('directional', { position: new THREE.Vector3(3, 5, 4), intensity: 1.2 });
+
+    // Ground plane
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(20, 20),
+      new THREE.MeshStandardMaterial({ color: 0x222244 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -2;
+    scene.add(ground);
+
+    // Target model (icosahedron as placeholder for GLB)
+    const target = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1.2, 2),
+      new THREE.MeshStandardMaterial({ color: 0x4488ff, metalness: 0.3, roughness: 0.5 })
+    );
+    target.position.y = 0.5;
+    scene.add(target);
+
+    // Projectiles pool (visual)
+    const projectiles = [];
+    const projGeom = new THREE.SphereGeometry(0.15, 8, 8);
+    const projMat = new THREE.MeshBasicMaterial({ color: 0xffff44 });
+
+    let score = 0;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    // HUD
+    game.hud.setText('score', 'Score: 0', { position: 'top-left' });
+    game.hud.button('reset', 'Reset', () => {
+      score = 0;
+      game.hud.setText('score', 'Score: 0');
+      for (const p of projectiles) { scene.remove(p.mesh); }
+      projectiles.length = 0;
+    }, { position: 'top-right' });
+
+    // Setup orbit camera
+    game.camera.orbit({ target: { x: 0, y: 0.5, z: 0 } });
+
+    // Click to shoot
+    const canvas = renderer.renderer.domElement;
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, threeCam);
+      const dir = raycaster.ray.direction.clone().normalize();
+      const origin = threeCam.position.clone();
+
+      // Create projectile
+      const mesh = new THREE.Mesh(projGeom, projMat);
+      mesh.position.copy(origin);
+      scene.add(mesh);
+      projectiles.push({
+        mesh,
+        velocity: dir.multiplyScalar(15),
+        life: 3,
+      });
+    });
+
+    game.onUpdate((ctx, dt) => {
+      // Rotate target
+      target.rotation.y += dt * 0.5;
+
+      // Update projectiles
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        p.mesh.position.add(p.velocity.clone().multiplyScalar(dt));
+        p.life -= dt;
+
+        // Check hit on target
+        const dist = p.mesh.position.distanceTo(target.position);
+        if (dist < 1.5) {
+          score += 10;
+          game.hud.setText('score', `Score: ${score}`);
+          game.camera.shake(0.2, 0.1);
+
+          // Particle burst at hit point
+          game.addParticleSystem({
+            capacity: 50, emitRate: 500,
+            x: p.mesh.position.x, y: p.mesh.position.y, z: p.mesh.position.z,
+            spread: 0.3, vy: 1, velocitySpread: 3,
+            life: 0.8, gravity: -3, color: [1, 0.8, 0.2], size: 0.06,
+          });
+
+          scene.remove(p.mesh);
+          projectiles.splice(i, 1);
+          continue;
+        }
+
+        if (p.life <= 0) {
+          scene.remove(p.mesh);
+          projectiles.splice(i, 1);
+        }
+      }
+    });
+
+    game.start();
+    window.addEventListener('beforeunload', () => game.destroy());
+  </script>
+</body>
+</html>

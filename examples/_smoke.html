@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smoke Test — my-engine</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #111; color: #eee; font-family: monospace; padding: 2rem; }
+    h1 { margin-bottom: 1rem; }
+    .test { padding: 4px 8px; margin: 2px 0; border-radius: 3px; }
+    .pass { background: #1a4d1a; color: #4f4; }
+    .fail { background: #4d1a1a; color: #f44; }
+    .running { background: #4d4d1a; color: #ff4; }
+    #summary { margin-top: 1rem; padding: 10px; font-weight: bold; }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "my-engine": "../engine/index.js",
+      "pixi.js": "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.mjs",
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
+      "json5": "https://cdn.jsdelivr.net/npm/json5@2.2.3/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>🔬 Smoke Test</h1>
+  <div id="results"></div>
+  <div id="summary"></div>
+  <div id="game" style="width:1px;height:1px;overflow:hidden;position:absolute;left:-9999px;"></div>
+
+  <script type="module">
+    const results = document.getElementById('results');
+    const summary = document.getElementById('summary');
+    let passed = 0, failed = 0;
+
+    function addResult(name, ok, detail = '') {
+      const div = document.createElement('div');
+      div.className = `test ${ok ? 'pass' : 'fail'}`;
+      div.textContent = `${ok ? '✓' : '✗'} ${name}${detail ? ' — ' + detail : ''}`;
+      results.appendChild(div);
+      if (ok) passed++; else failed++;
+    }
+
+    async function runTest(name, fn) {
+      const div = document.createElement('div');
+      div.className = 'test running';
+      div.textContent = `⏳ ${name}...`;
+      results.appendChild(div);
+      try {
+        await fn();
+        div.className = 'test pass';
+        div.textContent = `✓ ${name}`;
+        passed++;
+      } catch (e) {
+        div.className = 'test fail';
+        div.textContent = `✗ ${name} — ${e.message}`;
+        failed++;
+      }
+    }
+
+    // Import all modules
+    const { createGame, Pool, SpatialHash, createRNG, createEventBus,
+            createTweenManager, createSaveManager, createInputManager,
+            createCamera2D, createSceneManager, Easing } = await import('my-engine');
+
+    // Test Pool
+    await runTest('Pool: acquire/release', () => {
+      const pool = new Pool(() => ({ x: 0, y: 0 }), (o) => { o.x = 0; o.y = 0; }, 5);
+      const a = pool.acquire();
+      const b = pool.acquire();
+      if (pool.activeCount !== 2) throw new Error(`Expected 2 active, got ${pool.activeCount}`);
+      pool.release(a);
+      if (pool.activeCount !== 1) throw new Error('Release failed');
+      if (pool.freeCount !== 4) throw new Error(`Expected 4 free, got ${pool.freeCount}`);
+      pool.destroy();
+    });
+
+    // Test SpatialHash
+    await runTest('SpatialHash: insert/query', () => {
+      const grid = new SpatialHash(32);
+      grid.insert({ x: 10, y: 10, w: 20, h: 20 }, 'entity1');
+      grid.insert({ x: 100, y: 100, w: 20, h: 20 }, 'entity2');
+      const found = grid.query({ x: 5, y: 5, w: 30, h: 30 });
+      if (!found.has('entity1')) throw new Error('Should find entity1');
+      if (found.has('entity2')) throw new Error('Should not find entity2');
+      grid.destroy();
+    });
+
+    // Test RNG
+    await runTest('RNG: deterministic', () => {
+      const rng1 = createRNG(42);
+      const rng2 = createRNG(42);
+      for (let i = 0; i < 100; i++) {
+        if (rng1.random() !== rng2.random()) throw new Error('Not deterministic');
+      }
+    });
+
+    // Test EventBus
+    await runTest('EventBus: on/emit/off', () => {
+      const bus = createEventBus();
+      let count = 0;
+      const fn = () => count++;
+      bus.on('test', fn);
+      bus.emit('test');
+      if (count !== 1) throw new Error('Event not fired');
+      bus.off('test', fn);
+      bus.emit('test');
+      if (count !== 1) throw new Error('Event fired after off');
+      bus.destroy();
+    });
+
+    // Test TweenManager
+    await runTest('TweenManager: to/kill', () => {
+      const tm = createTweenManager();
+      const obj = { x: 0 };
+      const tw = tm.to(obj, { x: 100 }, { duration: 1, ease: 'linear' });
+      tm.update(0.5);
+      if (Math.abs(obj.x - 50) > 1) throw new Error(`Expected ~50, got ${obj.x}`);
+      tm.kill(tw);
+      if (tm.count !== 0) throw new Error('Tween not killed');
+      tm.destroy();
+    });
+
+    // Test Easing functions exist
+    await runTest('Easing: all functions present', () => {
+      const required = ['linear', 'easeInQuad', 'easeOutQuad', 'easeInOutQuad',
+        'easeInCubic', 'easeOutCubic', 'easeInOutCubic', 'easeInElastic',
+        'easeOutElastic', 'easeOutBounce'];
+      for (const name of required) {
+        if (typeof Easing[name] !== 'function') throw new Error(`Missing: ${name}`);
+      }
+      // Verify they return numbers in [0,1] range for t in [0,1]
+      for (const name of required) {
+        const val = Easing[name](0.5);
+        if (typeof val !== 'number') throw new Error(`${name}(0.5) not a number`);
+      }
+    });
+
+    // Test SaveManager
+    await runTest('SaveManager: set/get/reset', () => {
+      const save = createSaveManager('smoke_test_' + Date.now());
+      save.set('score', 42);
+      if (save.get('score') !== 42) throw new Error('Get failed');
+      save.reset();
+      if (save.get('score') !== undefined) throw new Error('Reset failed');
+      save.clear();
+    });
+
+    // Test Camera2D
+    await runTest('Camera2D: follow/shake', () => {
+      const cam = createCamera2D();
+      cam.follow({ x: 100, y: 50 }, { lerp: 1 });
+      cam.update(0.1);
+      cam.shake(0.1, 5);
+      cam.update(0.05);
+      if (typeof cam.x !== 'number') throw new Error('Camera x not a number');
+      cam.destroy();
+    });
+
+    // Test SceneManager
+    await runTest('SceneManager: add/go', async () => {
+      const sm = createSceneManager();
+      let entered = false;
+      sm.add('test', {
+        init() {},
+        enter() { entered = true; },
+        update() {},
+        exit() {},
+        destroy() {},
+      });
+      await sm.go('test');
+      if (!entered) throw new Error('Scene not entered');
+      if (sm.current !== 'test') throw new Error('Current not set');
+      sm.destroy();
+    });
+
+    // Test createGame (2D mode, minimal)
+    await runTest('createGame: 2D mode', async () => {
+      const game = await createGame({
+        mode: '2d',
+        width: 100,
+        height: 100,
+        mount: '#game',
+      });
+      if (!game.ctx) throw new Error('No ctx');
+      if (!game.input) throw new Error('No input');
+      if (!game.tweens) throw new Error('No tweens');
+      if (!game.events) throw new Error('No events');
+      if (!game.rng) throw new Error('No rng');
+      if (!game.audio) throw new Error('No audio');
+      if (!game.camera) throw new Error('No camera');
+      if (!game.scenes) throw new Error('No scenes');
+      if (!game.hud) throw new Error('No hud');
+      if (!game.save) throw new Error('No save');
+      if (!game.debug) throw new Error('No debug');
+      game.start();
+      game.stop();
+      game.destroy();
+    });
+
+    // Test createGame (3D mode)
+    await runTest('createGame: 3D mode', async () => {
+      const game = await createGame({
+        mode: '3d',
+        width: 100,
+        height: 100,
+        mount: '#game',
+      });
+      if (!game.ctx.renderer) throw new Error('No renderer');
+      game.start();
+      game.stop();
+      game.destroy();
+    });
+
+    // Test error handling
+    await runTest('createGame: bad mode throws', async () => {
+      try {
+        await createGame({ mode: '4d', mount: '#game' });
+        throw new Error('Should have thrown');
+      } catch (e) {
+        if (!e.message.includes('Unknown mode')) throw e;
+      }
+    });
+
+    await runTest('createGame: bad mount throws', async () => {
+      try {
+        await createGame({ mount: '#nonexistent' });
+        throw new Error('Should have thrown');
+      } catch (e) {
+        if (!e.message.includes('not found')) throw e;
+      }
+    });
+
+    // Summary
+    summary.textContent = `${passed} passed, ${failed} failed`;
+    summary.style.color = failed === 0 ? '#4f4' : '#f44';
+    summary.style.background = failed === 0 ? '#1a4d1a' : '#4d1a1a';
+  </script>
+</body>
+</html>
