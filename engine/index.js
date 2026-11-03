@@ -96,6 +96,7 @@ export async function createGame(userConfig = {}) {
 
   // Registries
   const emitters = [];
+  const animators = [];
   const shaderMaterials = {};
   const plugins = [];
   const sceneUpdateFns = [];
@@ -178,6 +179,7 @@ export async function createGame(userConfig = {}) {
     resume() {
       if (!game._paused) return game;
       game._paused = false;
+      if (!game._hooksInstalled) game._installHooks();
       loop.start();
       events.emit('game:resume');
       return game;
@@ -212,6 +214,9 @@ export async function createGame(userConfig = {}) {
 
         // Update tweens
         tweens.update(dt);
+
+        // Update animators
+        for (const a of animators) a.update(dt);
 
         // Update scenes
         scenes.update(dt);
@@ -286,6 +291,8 @@ export async function createGame(userConfig = {}) {
       loop.destroy();
       for (const emitter of emitters) emitter.destroy();
       emitters.length = 0;
+      for (const a of animators) a.destroy();
+      animators.length = 0;
       if (config.hooks?.onDestroy) config.hooks.onDestroy(ctx);
 
       // Destroy subsystems
@@ -306,6 +313,7 @@ export async function createGame(userConfig = {}) {
       plugins.length = 0;
       sceneUpdateFns.length = 0;
 
+      game._hooksInstalled = false;
       renderer.destroy();
       return null;
     },
@@ -333,6 +341,26 @@ export async function createGame(userConfig = {}) {
 
       emitters.push(emitter);
       return emitter;
+    },
+
+    /**
+     * Create and register an animator for a sprite.
+     * @param {object} sprite - PixiJS Sprite or Container
+     * @returns {Animator}
+     */
+    animator(sprite) {
+      const a = createAnimator(sprite);
+      animators.push(a);
+      return a;
+    },
+
+    /**
+     * Register an existing animator controller.
+     * @param {Animator} animator
+     */
+    addAnimator(animator) {
+      animators.push(animator);
+      return game;
     },
 
     async loadSpriteSheet(url, spriteConfig = {}) {
@@ -469,4 +497,5 @@ export { createEventBus } from './events.js';
 export { createSaveManager } from './save.js';
 export { Pool } from './pool.js';
 export { SpatialHash } from './spatial-hash.js';
+export { createAnimator, createStateMachine } from './animation.js';
 export { createAnimator, createStateMachine } from './animation.js';

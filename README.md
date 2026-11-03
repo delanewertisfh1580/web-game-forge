@@ -133,7 +133,8 @@ Async-функция. Создаёт и настраивает игру со в�
 | `game.debug` | Debug overlay |
 | `game.rng` | Seeded RNG |
 | `game.events` | Event bus |
-| `game.scene` | Convenience proxy для текущей сцены |
+| `game.animator(sprite)` | Создать аниматор для спрайта |
+| `game.addAnimator(anim)` | Зарегистрировать существующий аниматор |
 | `game.isPaused` | `boolean` |
 | `game.start()` | Запуск |
 | `game.stop()` | Остановка |
@@ -385,6 +386,56 @@ fsm.update(dt);
 ### ctx.camera vs game.camera (3D)
 - `game.ctx.camera` — сырой `THREE.PerspectiveCamera`
 - `game.camera` — обёртка `createCamera3D` с orbit/follow/shake
+
+## Animation
+
+`engine/animation.js` — спрайтовая анимация и конечные автоматы:
+
+```js
+import { createAnimator, createStateMachine } from 'my-engine';
+
+// Animator
+const anim = game.animator(sprite);
+anim.add('idle', { frames: [tex0, tex1], fps: 8, loop: true });
+anim.add('run',  { frames: [...], fps: 12, loop: true });
+anim.add('jump', { frames: [...], fps: 12, loop: false, onEnd: () => anim.play('idle') });
+anim.play('run');
+// anim.update(dt) вызывается автоматически из game loop
+
+// State Machine
+const fsm = createStateMachine('idle', {
+  idle: { enter() {}, update(dt) {}, exit() {} },
+  run:  { enter() {}, update(dt) {}, exit() {} },
+});
+fsm.go('run');
+fsm.update(dt);
+```
+
+Пример: `examples/animation.html`
+
+## Dev server (hot reload)
+
+```bash
+chmod +x scripts/dev.sh
+./scripts/dev.sh [port]   # default: 8080
+```
+
+- Отдаёт статику из корня проекта
+- SSE endpoint `/__reload` — шлёт `data: reload` при изменении файлов
+- Поллинг `.js/.html/.json5/.css` в `engine/`, `config/`, `examples/`, `templates/`, `prototypes/` каждые 300мс
+- `engine/boot.js` автоматически подключает `engine/dev-client.js`
+- Работает только с dev.sh; с `python3 -m http.server` — тихо игнорируется
+
+## Export to single file
+
+```bash
+chmod +x scripts/export.sh
+./scripts/export.sh <name>   # name = animation, platformer, etc.
+```
+
+- Инлайнит все `engine/*.js` в один `<script type="module">` через data: URI
+- CDN-зависимости (pixi.js, three) остаются как URL
+- Результат: `dist/<name>.html` — открывается через `file://` без сервера
 
 ## Ограничения и допущения
 

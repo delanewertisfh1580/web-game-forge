@@ -35,4 +35,7 @@
     origError.apply(console, args);
     showBanner(`[console.error] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`);
   };
+
+  // Try to load dev-client for hot reload (silently fails if not available)
+  import('./dev-client.js').catch(() => {});
 })();

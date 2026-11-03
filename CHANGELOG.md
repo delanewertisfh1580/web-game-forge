@@ -56,6 +56,24 @@ All notable changes to my-engine are documented here.
 
 ### Added
 
+- **game.animator(sprite)** — создать и зарегистрировать аниматор
+- **game.addAnimator(anim)** — зарегистрировать существующий аниматор
+- **examples/animation.html** — пример спрайтовой анимации
+- **scripts/dev.sh** — hot reload dev server (Python, SSE)
+- **engine/dev-client.js** — клиент для hot reload
+- **scripts/export.sh** — экспорт в single-file HTML
+
+### Fixed (regression test improvements)
+
+- **game.resume()** — вызывает `_installHooks()` если хуки ещё не установлены (fix для pause→resume без start)
+- **game.destroy()** — сбрасывает `_hooksInstalled = false`
+- **_smoke.html Regression #1** — переписан на tickUntil с реальной проверкой скорости tween
+- **_smoke.html Regression #2** — переписан на Promise.race без самопального throw
+- **_smoke.html Regression #7, #8, Plugin-test** — переписаны на tickUntil для устранения флейков
+- **_smoke.html** — добавлены тесты: animation createAnimator, createStateMachine, game.animator()
+
+### Added (continued)
+
 - **engine/animation.js** — sprite animation + state machine
   - `createAnimator(sprite)` — frame-based animation with `add()`, `play()`, `update(dt)`, `pause()`, `resume()`
   - `createStateMachine(initial, states)` — FSM with `go(name, data)`, `update(dt)`, `is(name)`
