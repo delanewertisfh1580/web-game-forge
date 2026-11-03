@@ -103,7 +103,7 @@ function App() {
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {['game.ctx', 'game.config', 'game.input', 'game.assets', 'game.tweens',
                   'game.audio', 'game.camera', 'game.scenes', 'game.hud', 'game.save',
-                  'game.debug', 'game.rng', 'game.events', 'game.scene'].map(prop => (
+                  'game.debug', 'game.rng', 'game.events', 'game.onSceneUpdate'].map(prop => (
                   <div key={prop} className="bg-gray-800 rounded px-3 py-1 font-mono text-green-400">{prop}</div>
                 ))}
               </div>

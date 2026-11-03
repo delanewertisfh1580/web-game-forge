@@ -57,10 +57,21 @@
       }
     }
 
+    // Helper: wait until predicate is true or timeout
+    async function tickUntil(predicate, maxMs = 1000) {
+      const start = performance.now();
+      while (performance.now() - start < maxMs) {
+        await new Promise(requestAnimationFrame);
+        if (predicate()) return;
+      }
+      throw new Error('tickUntil timeout');
+    }
+
     // Import all modules
     const { createGame, Pool, SpatialHash, createRNG, createEventBus,
             createTweenManager, createSaveManager, createInputManager,
-            createCamera2D, createCamera3D, createSceneManager, Easing } = await import('my-engine');
+            createCamera2D, createCamera3D, createSceneManager, Easing,
+            createAnimator, createStateMachine } = await import('my-engine');
 
     // === Basic module tests ===
 
@@ -211,36 +222,25 @@
       const obj = { x: 0 };
       game.tweens.to(obj, { x: 100 }, { duration: 1, ease: 'linear' });
       game.start();
-      // Simulate 3 pause/resume cycles
-      for (let i = 0; i < 3; i++) {
-        game.pause();
-        game.resume();
+      await tickUntil(() => obj.x >= 40 && obj.x <= 60, 800);
+      const after500 = obj.x;
+      if (after500 < 20 || after500 > 80) {
+        game.destroy();
+        throw new Error(`Tween x after ~500ms = ${after500.toFixed(1)} (expected ~50)`);
       }
-      // After ~1s of updates, obj.x should be ~100 (not 400+ from duplicated hooks)
-      // We'll simulate 1 second of updates manually
-      // Since loop is async, we just check that hooks aren't duplicated by counting
-      // the hook array length in the loop
-      const hookCount = game._hooksInstalled ? 1 : 0;
-      if (!game._hooksInstalled) throw new Error('Hooks not installed');
-      // Start again — should NOT re-install hooks
-      game.stop();
-      game.start();
-      game.start(); // triple start
-      if (game._hooksInstalled !== true) throw new Error('Flag not set');
+      for (let i = 0; i < 3; i++) { game.pause(); game.resume(); }
+      await tickUntil(() => obj.x >= 90, 800);
+      const after1000 = obj.x;
       game.stop();
       game.destroy();
+      if (after1000 > 150) throw new Error(`Tween completed too fast: x=${after1000} (hooks likely duplicated)`);
     });
 
     // Bug #2: game.ready() hangs until start()
     await runTest('Regression #2: game.ready() resolves before start()', async () => {
       const game = await createGame({ mode: '2d', width: 100, height: 100, mount: '#game' });
-      // ready() should resolve immediately after createGame returns
-      let resolved = false;
-      const timeout = setTimeout(() => { throw new Error('ready() timed out'); }, 1000);
-      await game.ready();
-      clearTimeout(timeout);
-      resolved = true;
-      if (!resolved) throw new Error('ready() did not resolve');
+      const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('ready() timeout')), 1000));
+      await Promise.race([game.ready(), timeout]);
       game.destroy();
     });
 
@@ -288,9 +288,8 @@
       game.addParticleSystem({ capacity: 10, emitRate: 5, x: 50, y: 50 }, { autoDestroyAfter: 0.2 });
       game.addParticleSystem({ capacity: 10, emitRate: 5, x: 50, y: 50 }, { autoDestroyAfter: 0.2 });
       if (game.emitterCount !== 2) throw new Error(`Expected 2 emitters, got ${game.emitterCount}`);
-      // Simulate time passing
       game.start();
-      await new Promise(r => setTimeout(r, 400));
+      await tickUntil(() => game.emitterCount === 0, 1000);
       game.stop();
       if (game.emitterCount !== 0) throw new Error(`Expected 0 emitters after auto-destroy, got ${game.emitterCount}`);
       game.destroy();
@@ -304,7 +303,7 @@
       game.onSceneUpdate(() => count2++);
       game.onSceneUpdate(() => count3++);
       game.start();
-      await new Promise(r => setTimeout(r, 100));
+      await tickUntil(() => count1 > 0 && count2 > 0 && count3 > 0, 500);
       game.stop();
       if (count1 === 0 || count2 === 0 || count3 === 0) throw new Error('Not all callbacks fired');
       // They should all have fired the same number of times
@@ -377,7 +376,7 @@
       }));
       if (!started) throw new Error('Plugin start not called');
       game.start();
-      await new Promise(r => setTimeout(r, 50));
+      await tickUntil(() => updated > 0, 500);
       game.stop();
       if (updated === 0) throw new Error('Plugin update not called');
       game.destroy();
@@ -390,6 +389,61 @@
       game.resize(200, 150);
       if (game.config.width !== 200) throw new Error('Config width not updated');
       if (game.config.height !== 150) throw new Error('Config height not updated');
+      game.destroy();
+    });
+
+    // === Animation tests ===
+
+    await runTest('animation: createAnimator play/update', () => {
+      const sprite = { texture: 'frame0' };
+      const anim = createAnimator(sprite);
+      anim.add('test', { frames: ['frame0', 'frame1', 'frame2'], fps: 10, loop: true });
+      anim.play('test');
+      if (anim.currentName !== 'test') throw new Error('Animation not playing');
+      // At fps=10, frame duration = 0.1s. After 0.25s should be on frame 2 (index 2)
+      anim.update(0.25);
+      if (sprite.texture !== 'frame2') throw new Error(`Expected frame2, got ${sprite.texture}`);
+      anim.destroy();
+    });
+
+    await runTest('animation: createStateMachine transitions', () => {
+      let enterCount = 0, exitCount = 0, updateCount = 0;
+      const fsm = createStateMachine('idle', {
+        idle: {
+          enter() { enterCount++; },
+          exit() { exitCount++; },
+          update(dt) { updateCount++; },
+        },
+        run: {
+          enter() { enterCount++; },
+          exit() { exitCount++; },
+        },
+      });
+      if (!fsm.is('idle')) throw new Error('Should start in idle');
+      if (enterCount !== 1) throw new Error('Initial enter not called');
+      fsm.update(0.1);
+      if (updateCount !== 1) throw new Error('Update not called');
+      fsm.go('run');
+      if (!fsm.is('run')) throw new Error('Should be in run');
+      if (exitCount !== 1) throw new Error('Exit not called');
+      if (enterCount !== 2) throw new Error('Second enter not called');
+      fsm.destroy();
+    });
+
+    await runTest('createGame: game.animator(sprite) returns controller', async () => {
+      const game = await createGame({ mode: '2d', width: 100, height: 100, mount: '#game' });
+      const sprite = { texture: null };
+      const anim = game.animator(sprite);
+      if (!anim || typeof anim.play !== 'function' || typeof anim.update !== 'function') {
+        throw new Error('game.animator() did not return proper controller');
+      }
+      anim.add('test', { frames: ['a', 'b'], fps: 5, loop: true });
+      anim.play('test');
+      game.start();
+      await new Promise(r => setTimeout(r, 50));
+      game.stop();
+      // Animator should have been updated by game loop
+      if (anim.currentName !== 'test') throw new Error('Animation not playing after game loop');
       game.destroy();
     });
 

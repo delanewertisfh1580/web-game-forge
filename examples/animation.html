@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Animation — my-engine example</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui, sans-serif; color: #eee; }
+    h1 { margin-bottom: 0.5rem; font-size: 1.2rem; opacity: 0.7; }
+    #game { border: 1px solid #333; border-radius: 4px; overflow: hidden; }
+    .info { margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.5; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "my-engine": "../engine/index.js",
+      "pixi.js": "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.mjs",
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
+      "json5": "https://cdn.jsdelivr.net/npm/json5@2.2.3/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>🎬 Sprite Animation Demo</h1>
+  <div id="game"></div>
+  <p class="info">WASD/Arrows → run, Space → jump, release → idle</p>
+  <script type="module" src="../engine/boot.js"></script>
+  <script type="module">
+    import { createGame } from 'my-engine';
+    import * as PIXI from 'pixi.js';
+
+    const W = 600, H = 400;
+    const game = await createGame({
+      mode: '2d', width: W, height: H,
+      backgroundColor: 0x1a1a2e,
+      input: {
+        move: ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight'],
+        jump: ['Space'],
+      },
+    });
+
+    const { renderer } = game.ctx;
+
+    // Generate 4 procedural "frames" using PIXI.Graphics
+    const colors = [0x44aaff, 0x44ff88, 0xffaa44, 0xff4488];
+    const frames = colors.map((color, i) => {
+      const g = new PIXI.Graphics();
+      const size = 40 + (i % 2) * 10; // pulse size
+      g.rect(-size/2, -size/2, size, size);
+      g.fill(color);
+      // Convert to texture via renderer
+      return renderer.app.renderer.generateTexture({ target: g });
+    });
+
+    // Create sprite
+    const sprite = new PIXI.Sprite(frames[0]);
+    sprite.x = W / 2;
+    sprite.y = H / 2;
+    renderer.app.stage.addChild(sprite);
+
+    // Setup animations via game.animator()
+    const anim = game.animator(sprite);
+    anim.add('idle', { frames: [frames[0], frames[1]], fps: 3, loop: true });
+    anim.add('run',  { frames: [frames[0], frames[1], frames[2], frames[3]], fps: 12, loop: true });
+    anim.add('jump', {
+      frames: [frames[2], frames[3], frames[2]],
+      fps: 10, loop: false,
+      onEnd: () => anim.play('idle'),
+    });
+    anim.play('idle');
+
+    // HUD
+    game.hud.setText('anim', 'Animation: idle', { position: 'top-left' });
+    game.hud.setText('hint', 'WASD = run | Space = jump', { position: 'bottom-center' });
+
+    // Input handling
+    let isJumping = false;
+    game.onUpdate(() => {
+      if (game.input.isPressed('jump') && !isJumping) {
+        isJumping = true;
+        anim.play('jump');
+        game.hud.setText('anim', 'Animation: jump');
+      }
+      if (game.input.isDown('move') && !isJumping) {
+        if (anim.currentName !== 'run') {
+          anim.play('run');
+          game.hud.setText('anim', 'Animation: run');
+        }
+      } else if (!game.input.isDown('jump') && !game.input.isDown('move')) {
+        isJumping = false;
+        if (anim.currentName !== 'idle') {
+          anim.play('idle');
+          game.hud.setText('anim', 'Animation: idle');
+        }
+      }
+      if (!game.input.isDown('jump')) isJumping = false;
+    });
+
+    game.start();
+    window.addEventListener('beforeunload', () => game.destroy());
+  </script>
+</body>
+</html>
