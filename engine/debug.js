@@ -1,11 +1,11 @@
 /**
- * debug.js — debug overlay (toggle with ~ key).
+ * debug.js — debug overlay (toggle with ~ key, pause with P).
  * @module debug
  */
 
 /**
  * Create a debug overlay.
- * @param {object} game - game instance
+ * @param {object} game - real game instance (with pause/resume methods)
  * @returns {DebugOverlay}
  */
 export function createDebugOverlay(game) {
@@ -19,7 +19,9 @@ export function createDebugOverlay(game) {
   let fpsAccum = 0;
   let fps = 0;
   let frameTime = 0;
-  let paused = false;
+  let lastTime = performance.now();
+  let _rafId = null;
+  let _destroyed = false;
 
   const stats = {
     entities: 0,
@@ -31,55 +33,87 @@ export function createDebugOverlay(game) {
   function toggle() {
     visible = !visible;
     panel.style.display = visible ? 'block' : 'none';
+    if (visible) renderPanel();
   }
 
-  // Listen for ~ (Backquote)
-  window.addEventListener('keydown', (e) => {
+  function togglePause() {
+    if (!game) return;
+    if (game.isPaused) {
+      game.resume();
+    } else {
+      game.pause();
+    }
+  }
+
+  function renderPanel() {
+    if (!visible || _destroyed) return;
+
+    // Gather stats
+    if (game?.tweens) stats.tweens = game.tweens.count;
+    if (game?.ctx?.renderer?.particleContainers) {
+      stats.particles = 0;
+      for (const [, data] of game.ctx.renderer.particleContainers) {
+        stats.particles += data.particles.length;
+      }
+    }
+    if (game?.ctx?.renderer?.particleSystems) {
+      stats.particles = 0;
+      for (const [, sys] of game.ctx.renderer.particleSystems) {
+        stats.particles += sys.lifetimes.filter(l => l > 0).length;
+      }
+    }
+
+    panel.innerHTML = `
+      <div style="color:#ff0;font-weight:bold;margin-bottom:4px">⚙ DEBUG</div>
+      <div>FPS: ${fps}</div>
+      <div>Frame: ${frameTime.toFixed(1)}ms</div>
+      <div>Particles: ${stats.particles}</div>
+      <div>Tweens: ${stats.tweens}</div>
+      <div>Mode: ${game?.config?.mode ?? '?'}</div>
+      <div>Scene: ${game?.scenes?.current ?? 'none'}</div>
+      <div>Paused: ${game?.isPaused ?? false}</div>
+      <div>Emitters: ${game?.emitterCount ?? 0}</div>
+      <hr style="border-color:#333;margin:6px 0">
+      <div style="font-size:11px;opacity:.6">~ toggle | P pause/resume</div>
+    `;
+  }
+
+  // Independent RAF loop so debug works even when game is paused (fix #9)
+  function tick() {
+    if (_destroyed) return;
+    const now = performance.now();
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+
+    frameCount++;
+    fpsAccum += dt;
+    frameTime = dt * 1000;
+    if (fpsAccum >= 0.5) {
+      fps = Math.round(frameCount / fpsAccum);
+      frameCount = 0;
+      fpsAccum = 0;
+    }
+
+    if (visible) renderPanel();
+    _rafId = requestAnimationFrame(tick);
+  }
+  _rafId = requestAnimationFrame(tick);
+
+  // Listen for ~ (Backquote) and P
+  const keyHandler = (e) => {
     if (e.code === 'Backquote' || e.key === '`' || e.key === '~') {
       toggle();
+    } else if (e.code === 'KeyP' && visible) {
+      togglePause();
     }
-  });
+  };
+  window.addEventListener('keydown', keyHandler);
 
   return {
-    /** Update debug info (call each frame) */
+    /** Update debug info (called from game loop, but also works via RAF) */
     update(dt) {
-      frameCount++;
-      fpsAccum += dt;
-      frameTime = dt * 1000;
-      if (fpsAccum >= 0.5) {
-        fps = Math.round(frameCount / fpsAccum);
-        frameCount = 0;
-        fpsAccum = 0;
-      }
-
-      if (visible) {
-        // Gather stats
-        if (game.tweens) stats.tweens = game.tweens.count;
-        if (game.ctx.renderer && game.ctx.renderer.particleContainers) {
-          stats.particles = 0;
-          for (const [, data] of game.ctx.renderer.particleContainers) {
-            stats.particles += data.particles.length;
-          }
-        }
-        if (game.ctx.renderer && game.ctx.renderer.particleSystems) {
-          for (const [, sys] of game.ctx.renderer.particleSystems) {
-            stats.particles += sys.lifetimes.filter(l => l > 0).length;
-          }
-        }
-
-        panel.innerHTML = `
-          <div style="color:#ff0;font-weight:bold;margin-bottom:4px">⚙ DEBUG</div>
-          <div>FPS: ${fps}</div>
-          <div>Frame: ${frameTime.toFixed(1)}ms</div>
-          <div>Particles: ${stats.particles}</div>
-          <div>Tweens: ${stats.tweens}</div>
-          <div>Mode: ${game.config.mode}</div>
-          <div>Scene: ${game.scenes?.current ?? 'none'}</div>
-          <div>Paused: ${paused}</div>
-          <hr style="border-color:#333;margin:6px 0">
-          <div style="font-size:11px;opacity:.6">~ toggle | P pause</div>
-        `;
-      }
+      // Frame timing is now handled by independent RAF
+      // This method is kept for API compatibility
     },
 
     /** Set a custom stat */
@@ -87,27 +121,26 @@ export function createDebugOverlay(game) {
       stats[key] = value;
     },
 
-    /** Toggle pause */
-    togglePause() {
-      paused = !paused;
-      if (paused) game.pause?.();
-      else game.resume?.();
-      return paused;
-    },
+    /** Toggle pause via debug */
+    togglePause,
 
     /** Is paused via debug? */
-    get isPaused() { return paused; },
+    get isPaused() { return game?.isPaused ?? false; },
 
     /** Show/hide */
     setVisible(v) {
       visible = v;
       panel.style.display = v ? 'block' : 'none';
+      if (v) renderPanel();
     },
 
     /** @returns {boolean} */
     get isVisible() { return visible; },
 
     destroy() {
+      _destroyed = true;
+      if (_rafId !== null) cancelAnimationFrame(_rafId);
+      window.removeEventListener('keydown', keyHandler);
       panel.remove();
     },
   };

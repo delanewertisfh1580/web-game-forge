@@ -18,13 +18,13 @@ export function createCamera3D(camera, domElement) {
   let shakeDuration = 0;
   let shakeIntensity = 0;
   let shakeOffset = { x: 0, y: 0, z: 0 };
-  const minRadius = 2;
-  const maxRadius = 50;
+  let minRadius = 2;
+  let maxRadius = 50;
   const listeners = [];
 
-  function addListener(el, type, fn) {
-    el.addEventListener(type, fn);
-    listeners.push({ el, type, fn });
+  function addListener(el, type, fn, opts) {
+    el.addEventListener(type, fn, opts);
+    listeners.push({ el, type, fn, opts });
   }
 
   function updatePosition() {
@@ -56,7 +56,7 @@ export function createCamera3D(camera, domElement) {
     e.preventDefault();
     spherical.radius = Math.max(minRadius, Math.min(maxRadius, spherical.radius + e.deltaY * 0.01));
     updatePosition();
-  });
+  }, { passive: false });
 
   updatePosition();
 
@@ -129,8 +129,8 @@ export function createCamera3D(camera, domElement) {
     get threeCamera() { return camera; },
 
     destroy() {
-      for (const { el, type, fn } of listeners) {
-        el.removeEventListener(type, fn);
+      for (const { el, type, fn, opts } of listeners) {
+        el.removeEventListener(type, fn, opts);
       }
       listeners.length = 0;
     },

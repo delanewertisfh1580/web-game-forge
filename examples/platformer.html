@@ -136,24 +136,38 @@
       },
     });
 
+    // Fix #6: local pause flag instead of game.pause()
+    let scenePaused = false;
+
     game.scenes.add('play', {
       enter() {
+        scenePaused = false;
         resetGame();
       },
       update(dt) {
+        // Toggle local pause with Escape
+        if (game.input.isPressed('pause')) {
+          scenePaused = !scenePaused;
+          if (scenePaused) {
+            game.hud.setText('paused', 'PAUSED (Esc to resume)', { position: 'center', style: 'font-size:24px;' });
+          } else {
+            game.hud.removeText('paused');
+          }
+        }
+
+        if (game.input.isPressed('restart')) {
+          resetGame();
+        }
+
+        // Skip physics/spawning when paused (but still render + handle input)
+        if (scenePaused) return;
+
         // Input
         const axis = game.input.axis();
         phys.vx = axis.x * MOVE_SPEED;
         if (game.input.isPressed('jump') && phys.onGround) {
           phys.vy = JUMP_VEL;
           phys.onGround = false;
-        }
-        if (game.input.isPressed('pause')) {
-          game.pause();
-          game.hud.setText('paused', 'PAUSED (Esc to resume)', { position: 'center', style: 'font-size:24px;' });
-        }
-        if (game.input.isPressed('restart')) {
-          resetGame();
         }
 
         // Gravity
@@ -179,13 +193,13 @@
             score += 10;
             game.hud.setText('score', `Score: ${score}`);
             game.events.emit('coin:collect', coin);
-            // Particle burst
+            // Particle burst with autoDestroyAfter (fix #7)
             game.addParticleSystem({
               capacity: 20, emitRate: 200,
               x: coin.x, y: coin.y,
               vx: 0, vxSpread: 100, vy: 0, vySpread: 100,
               life: 0.5, gravity: 0, radius: 3, color: 0xffcc00,
-            });
+            }, { autoDestroyAfter: 1.0 });
           }
         }
 
@@ -238,11 +252,6 @@
         coin.gfx.visible = true;
       }
     }
-
-    // Resume handler
-    game.events.on('game:resume', () => {
-      game.hud.removeText('paused');
-    });
 
     // Start with menu
     await game.scenes.go('menu');
