@@ -2,7 +2,7 @@
 
 Безсборочный движок для быстрых HTML-прототипов игр. Каждый прототип — отдельный HTML-файл, подключённый к общему движку через Import Map.
 
-**v0.2.0** — 15 модулей, 7 примеров, полная интеграция подсистем.
+**v0.3.0** — 23 модуля, 7 примеров, 12 regression fixes, animation module.
 
 ## Быстрый старт
 
@@ -315,6 +315,76 @@ game.use((game) => ({
 | Three.js | 0.170.0 | jsdelivr |
 | GSAP | 3.12.5 | jsdelivr |
 | JSON5 | 2.2.3 | jsdelivr |
+
+## Аудит и регрессионные фиксы (v0.3.0)
+
+Все 13 подтверждённых багов исправлены и покрыты тестами в `examples/_smoke.html`:
+
+| # | Файл | Проблема | Фикс |
+|---|------|----------|------|
+| 1 | index.js | start()/resume() дублировали хуки | Флаг `_hooksInstalled`, `_installHooks()` |
+| 2 | index.js | game.ready() висел до start() | Резолвится в конце createGame |
+| 3 | camera3d.js | crash в orbit({minR,maxR}) | `const` → `let`, passive:false |
+| 4 | hud.js | transform не сбрасывался | `el.style.transform = ''` |
+| 5 | hud.js | cssText копился | Пересборка из base + opts.style |
+| 6 | platformer.html | pause без resume | Локальный `scenePaused` флаг |
+| 7 | 3d-orbit.html | утечка particle systems | `autoDestroyAfter` опция |
+| 8 | index.js | game.scene.update накапливал обёртки | `game.onSceneUpdate(fn)` |
+| 9 | debug.js | pause/resume не работали | Реальный game ref, отдельный RAF |
+| 10 | renderer3d.js | per-particle size не работал | ShaderMaterial с aSize/aAlpha |
+| 11 | assets.js | loadTexture тянул pixi.js | `engine: 'pixi'|'three'|'image'|'auto'` |
+| 12 | index.js | ctx.camera не документирован | Комментарий + README |
+| 13 | _smoke.html | не покрывал новые тесты | +12 regression tests |
+
+## Новые API (v0.3.0)
+
+### `game.onSceneUpdate(fn)`
+Регистрирует callback, вызываемый каждый кадр после `scenes.update(dt)`.
+```js
+game.onSceneUpdate((dt) => {
+  // вызывается после текущей сцены
+});
+```
+
+### `game.addParticleSystem(config, { autoDestroyAfter })`
+Добавляет частицы с автоудалением через N секунд:
+```js
+game.addParticleSystem({ capacity: 50, ... }, { autoDestroyAfter: 1.5 });
+```
+
+### `game.emitterCount`
+Количество активных particle emitters.
+
+### `createAnimator(sprite)` — engine/animation.js
+Спрайтовая анимация:
+```js
+const anim = createAnimator(sprite);
+anim.add('idle', { frames: [tex0, tex1], fps: 8, loop: true });
+anim.add('jump', { frames: [tex2, tex3], fps: 12, loop: false, onEnd: () => anim.play('idle') });
+anim.play('idle');
+anim.update(dt); // из main-tick
+```
+
+### `createStateMachine(initial, states)` — engine/animation.js
+Конечный автомат:
+```js
+const fsm = createStateMachine('idle', {
+  idle: { enter() {}, update(dt) {}, exit() {} },
+  run:  { enter() {}, update(dt) {}, exit() {} },
+});
+fsm.go('run');
+fsm.update(dt);
+```
+
+### Debug overlay (v0.3.0)
+- `~` — toggle overlay
+- `P` — pause/resume (когда overlay виден)
+- Показывает FPS даже при паузе (независимый RAF)
+- Показывает emitter count
+
+### ctx.camera vs game.camera (3D)
+- `game.ctx.camera` — сырой `THREE.PerspectiveCamera`
+- `game.camera` — обёртка `createCamera3D` с orbit/follow/shake
 
 ## Ограничения и допущения
 

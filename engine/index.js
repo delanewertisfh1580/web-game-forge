@@ -29,6 +29,7 @@ import { createEventBus } from './events.js';
 import { createSaveManager } from './save.js';
 import { Pool } from './pool.js';
 import { SpatialHash } from './spatial-hash.js';
+import { createAnimator, createStateMachine } from './animation.js';
 
 /**
  * Create a game instance.
@@ -82,6 +83,8 @@ export async function createGame(userConfig = {}) {
   const loop = new GameLoop();
 
   // Context
+  // NOTE: ctx.camera is the raw THREE.PerspectiveCamera in 3D mode.
+  // For the camera wrapper (orbit/follow/shake), use game.camera instead.
   const ctx = {
     config,
     renderer,
@@ -95,6 +98,7 @@ export async function createGame(userConfig = {}) {
   const emitters = [];
   const shaderMaterials = {};
   const plugins = [];
+  const sceneUpdateFns = [];
 
   // === Initialize all subsystems ===
 
@@ -143,10 +147,7 @@ export async function createGame(userConfig = {}) {
     defaults: config.saveDefaults ?? {},
   });
 
-  // Debug
-  const debug = createDebugOverlay({ config, ctx, tweens, scenes, pause: null, resume: null });
-
-  // === Game object ===
+  // === Game object (needed before debug so debug gets real game) ===
   const game = {
     ctx,
     config,
@@ -160,13 +161,14 @@ export async function createGame(userConfig = {}) {
     scenes,
     hud,
     save,
-    debug,
+    debug: null, // set below after game is created
 
     // Pause state
     _paused: false,
     get isPaused() { return game._paused; },
 
     pause() {
+      if (game._paused) return game;
       game._paused = true;
       loop.stop();
       events.emit('game:pause');
@@ -174,42 +176,28 @@ export async function createGame(userConfig = {}) {
     },
 
     resume() {
+      if (!game._paused) return game;
       game._paused = false;
       loop.start();
       events.emit('game:resume');
       return game;
     },
 
-    // Ready promise
+    // Ready promise — resolved at end of createGame (NOT in start)
     _readyResolve: null,
-    _readyReject: null,
-    _readyPromise: null,
+    _readyPromise: new Promise((resolve) => { game._readyResolve = resolve; }),
 
     ready() {
-      if (!game._readyPromise) {
-        game._readyPromise = new Promise((resolve, reject) => {
-          game._readyResolve = resolve;
-          game._readyReject = reject;
-        });
-      }
       return game._readyPromise;
     },
 
-    // Scene convenience proxy
-    scene: {
-      update(fn) {
-        if (scenes.current) {
-          const origUpdate = scenes.scene.update;
-          scenes.scene.update = (dt) => {
-            origUpdate(dt);
-            fn(dt);
-          };
-        }
-        return game;
-      },
-    },
+    // Hooks installation flag (fix #1: prevent duplicate hooks on start/resume)
+    _hooksInstalled: false,
 
-    start() {
+    _installHooks() {
+      if (game._hooksInstalled) return;
+      game._hooksInstalled = true;
+
       // Register user hooks
       if (config.hooks?.onUpdate) {
         loop.addHook((dt) => config.hooks.onUpdate(ctx, dt));
@@ -228,9 +216,22 @@ export async function createGame(userConfig = {}) {
         // Update scenes
         scenes.update(dt);
 
-        // Update emitters
-        for (const emitter of emitters) {
+        // Scene update callbacks (fix #8)
+        for (const fn of sceneUpdateFns) {
+          try { fn(dt); } catch (e) { console.error('[game] onSceneUpdate error:', e); }
+        }
+
+        // Update emitters (with autoDestroyAfter support)
+        for (let i = emitters.length - 1; i >= 0; i--) {
+          const emitter = emitters[i];
           emitter.update(dt);
+          if (emitter._autoDestroyTimer !== undefined) {
+            emitter._autoDestroyTimer -= dt;
+            if (emitter._autoDestroyTimer <= 0) {
+              emitter.destroy();
+              emitters.splice(i, 1);
+            }
+          }
         }
 
         // Update shader uniforms
@@ -248,8 +249,8 @@ export async function createGame(userConfig = {}) {
           camera.update(dt);
         }
 
-        // Update debug
-        debug.update(dt);
+        // Update debug (outside paused check so FPS shows during pause)
+        if (game.debug) game.debug.update(dt);
 
         // End input frame
         input.endFrame();
@@ -266,12 +267,11 @@ export async function createGame(userConfig = {}) {
           renderer.render();
         });
       }
+    },
 
+    start() {
+      game._installHooks();
       loop.start();
-
-      // Resolve ready
-      if (game._readyResolve) game._readyResolve(game);
-
       events.emit('game:start');
       return game;
     },
@@ -295,7 +295,7 @@ export async function createGame(userConfig = {}) {
       camera.destroy();
       scenes.destroy();
       hud.destroy();
-      debug.destroy();
+      if (game.debug) game.debug.destroy();
       events.destroy();
       save.destroy();
       assets.destroy();
@@ -304,12 +304,20 @@ export async function createGame(userConfig = {}) {
         if (plugin.destroy) plugin.destroy();
       }
       plugins.length = 0;
+      sceneUpdateFns.length = 0;
 
       renderer.destroy();
       return null;
     },
 
-    addParticleSystem(particleConfig = {}) {
+    /**
+     * Add a particle system.
+     * @param {object} particleConfig
+     * @param {object} [options]
+     * @param {number} [options.autoDestroyAfter] - seconds until auto-destroy
+     * @returns {object} emitter with update/destroy
+     */
+    addParticleSystem(particleConfig = {}, options = {}) {
       let emitter;
       if (config.factories?.particleSystem) {
         emitter = config.factories.particleSystem(renderer, particleConfig);
@@ -318,6 +326,11 @@ export async function createGame(userConfig = {}) {
       } else {
         emitter = createParticleEmitter3D(renderer, particleConfig);
       }
+
+      if (options.autoDestroyAfter !== undefined && options.autoDestroyAfter > 0) {
+        emitter._autoDestroyTimer = options.autoDestroyAfter;
+      }
+
       emitters.push(emitter);
       return emitter;
     },
@@ -357,6 +370,16 @@ export async function createGame(userConfig = {}) {
       return game;
     },
 
+    /**
+     * Register a scene update callback.
+     * Called each frame after scenes.update(dt), only when not paused.
+     * @param {function} fn - (dt) => void
+     */
+    onSceneUpdate(fn) {
+      sceneUpdateFns.push(fn);
+      return game;
+    },
+
     resize(width, height) {
       config.width = width;
       config.height = height;
@@ -375,10 +398,14 @@ export async function createGame(userConfig = {}) {
       if (plugin.start) plugin.start();
       return game;
     },
+
+    /** @returns {number} count of active emitters */
+    get emitterCount() { return emitters.length; },
   };
 
-  // Setup debug pause/resume references
-  debug._gameRef = game;
+  // Debug — created after game so it has real reference (fix #9)
+  const debug = createDebugOverlay(game);
+  game.debug = debug;
 
   // Load assets if specified
   if (config.assets?.manifest) {
@@ -413,10 +440,8 @@ export async function createGame(userConfig = {}) {
     debug.setVisible(true);
   }
 
-  // Create ready promise
-  game._readyPromise = new Promise((resolve) => {
-    game._readyResolve = resolve;
-  });
+  // Resolve ready promise (fix #2: ready resolves here, not in start)
+  game._readyResolve(game);
 
   return game;
 }
@@ -444,3 +469,4 @@ export { createEventBus } from './events.js';
 export { createSaveManager } from './save.js';
 export { Pool } from './pool.js';
 export { SpatialHash } from './spatial-hash.js';
+export { createAnimator, createStateMachine } from './animation.js';

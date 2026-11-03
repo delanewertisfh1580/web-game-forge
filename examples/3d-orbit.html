@@ -122,13 +122,13 @@
           game.hud.setText('score', `Score: ${score}`);
           game.camera.shake(0.2, 0.1);
 
-          // Particle burst at hit point
+          // Particle burst at hit point (auto-destroy after 1.5s — fix #7)
           game.addParticleSystem({
             capacity: 50, emitRate: 500,
             x: p.mesh.position.x, y: p.mesh.position.y, z: p.mesh.position.z,
             spread: 0.3, vy: 1, velocitySpread: 3,
             life: 0.8, gravity: -3, color: [1, 0.8, 0.2], size: 0.06,
-          });
+          }, { autoDestroyAfter: 1.5 });
 
           scene.remove(p.mesh);
           projectiles.splice(i, 1);

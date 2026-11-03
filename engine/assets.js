@@ -21,22 +21,62 @@ export function createAssetManager(options = {}) {
     return baseUrl + url;
   }
 
-  async function loadTexture(url) {
+  async function loadTexture(url, options = {}) {
     const resolved = resolveUrl(url);
     if (cache.has(resolved)) return cache.get(resolved);
-    // Try PixiJS if available, otherwise create Image
-    try {
+
+    // Fix #11: engine hint — 'pixi' | 'three' | 'image' | 'auto'
+    const engine = options.engine ?? 'auto';
+
+    if (engine === 'pixi') {
       const PIXI = await import('pixi.js');
       const texture = await PIXI.Assets.load(resolved);
       cache.set(resolved, texture);
       return texture;
-    } catch {
+    }
+
+    if (engine === 'three') {
+      const THREE = await import('three');
+      const loader = new THREE.TextureLoader();
+      const texture = await new Promise((resolve, reject) => {
+        loader.load(resolved, resolve, undefined, reject);
+      });
+      cache.set(resolved, texture);
+      return texture;
+    }
+
+    if (engine === 'image') {
       return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => { cache.set(resolved, img); resolve(img); };
         img.onerror = reject;
         img.src = resolved;
       });
+    }
+
+    // 'auto': try three first (lighter), then pixi, then image
+    try {
+      const THREE = await import('three');
+      const loader = new THREE.TextureLoader();
+      const texture = await new Promise((resolve, reject) => {
+        loader.load(resolved, resolve, undefined, reject);
+      });
+      cache.set(resolved, texture);
+      return texture;
+    } catch {
+      try {
+        const PIXI = await import('pixi.js');
+        const texture = await PIXI.Assets.load(resolved);
+        cache.set(resolved, texture);
+        return texture;
+      } catch {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => { cache.set(resolved, img); resolve(img); };
+          img.onerror = reject;
+          img.src = resolved;
+        });
+      }
     }
   }
 

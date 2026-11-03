@@ -3,6 +3,10 @@
  * @module hud
  */
 
+const TEXT_BASE_STYLE = 'position:absolute;padding:6px 12px;font-size:16px;font-weight:bold;text-shadow:1px 1px 2px rgba(0,0,0,.8);';
+const BUTTON_BASE_STYLE = 'position:absolute;padding:8px 16px;font-size:14px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;cursor:pointer;pointer-events:auto;backdrop-filter:blur(4px);';
+const PANEL_BASE_STYLE = 'position:absolute;padding:10px 14px;background:rgba(0,0,0,.5);border-radius:8px;font-size:13px;line-height:1.6;backdrop-filter:blur(4px);';
+
 /**
  * Create a HUD manager.
  * @param {HTMLElement} mountEl - the game mount element
@@ -37,14 +41,14 @@ export function createHUDManager(mountEl) {
       let el = texts.get(id);
       if (!el) {
         el = document.createElement('div');
-        el.style.cssText = 'position:absolute;padding:6px 12px;font-size:16px;font-weight:bold;text-shadow:1px 1px 2px rgba(0,0,0,.8);';
         container.appendChild(el);
         texts.set(id, el);
       }
       el.textContent = String(value);
+      // Fix #5: rebuild cssText from base + user style (no accumulation)
+      el.style.cssText = TEXT_BASE_STYLE + (opts.style ? ';' + opts.style : '');
       const pos = opts.position ?? 'top-left';
       applyPosition(el, pos, opts.offset);
-      if (opts.style) el.style.cssText += ';' + opts.style;
     },
 
     /** Remove a text element */
@@ -64,12 +68,12 @@ export function createHUDManager(mountEl) {
       let el = buttons.get(id);
       if (!el) {
         el = document.createElement('button');
-        el.style.cssText = 'position:absolute;padding:8px 16px;font-size:14px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;cursor:pointer;pointer-events:auto;backdrop-filter:blur(4px);';
         el.addEventListener('click', onClick);
         container.appendChild(el);
         buttons.set(id, el);
       }
       el.textContent = label;
+      el.style.cssText = BUTTON_BASE_STYLE + (opts.style ? ';' + opts.style : '');
       const pos = opts.position ?? 'top-right';
       applyPosition(el, pos, opts.offset);
     },
@@ -91,10 +95,10 @@ export function createHUDManager(mountEl) {
       let el = panels.get(id);
       if (!el) {
         el = document.createElement('div');
-        el.style.cssText = 'position:absolute;padding:10px 14px;background:rgba(0,0,0,.5);border-radius:8px;font-size:13px;line-height:1.6;backdrop-filter:blur(4px);';
         container.appendChild(el);
         panels.set(id, el);
       }
+      el.style.cssText = PANEL_BASE_STYLE + (opts.style ? ';' + opts.style : '');
       const pos = opts.position ?? 'top-left';
       applyPosition(el, pos, opts.offset);
 
@@ -143,6 +147,8 @@ export function createHUDManager(mountEl) {
 function applyPosition(el, position, offset = {}) {
   const o = offset || {};
   const pad = o.pad ?? 10;
+  // Fix #4: always reset transform before setting position
+  el.style.transform = '';
   el.style.top = ''; el.style.bottom = ''; el.style.left = ''; el.style.right = '';
   switch (position) {
     case 'top-left': el.style.top = pad + 'px'; el.style.left = pad + 'px'; break;

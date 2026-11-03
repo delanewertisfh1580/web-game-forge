@@ -77,24 +77,51 @@ export class Renderer3D {
     const positions = new Float32Array(capacity * 3);
     const velocities = new Float32Array(capacity * 3);
     const lifetimes = new Float32Array(capacity);
+    const maxLifetimes = new Float32Array(capacity);
     const colors = new Float32Array(capacity * 3);
     const sizes = new Float32Array(capacity);
+    const alphas = new Float32Array(capacity);
 
     // Initialize all particles as dead
     lifetimes.fill(0);
+    alphas.fill(0);
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+    geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+    geometry.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
 
-    const material = config.material ?? new THREE.PointsMaterial({
-      size: config.size ?? 0.05,
-      vertexColors: true,
+    // Fix #10: Use ShaderMaterial so per-particle size and alpha work
+    const material = config.material ?? new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute float aSize;
+        attribute float aAlpha;
+        attribute vec3 aColor;
+        varying float vAlpha;
+        varying vec3 vColor;
+        void main() {
+          vAlpha = aAlpha;
+          vColor = aColor;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = aSize * (300.0 / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying float vAlpha;
+        varying vec3 vColor;
+        void main() {
+          // Circular point with soft edge
+          float d = length(gl_PointCoord - vec2(0.5));
+          if (d > 0.5) discard;
+          float alpha = vAlpha * smoothstep(0.5, 0.2, d);
+          gl_FragColor = vec4(vColor, alpha);
+        }
+      `,
       transparent: true,
-      opacity: config.opacity ?? 0.8,
-      blending: THREE.AdditiveBlending,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
 
     const points = new THREE.Points(geometry, material);
@@ -108,8 +135,10 @@ export class Renderer3D {
       positions,
       velocities,
       lifetimes,
+      maxLifetimes,
       colors,
       sizes,
+      alphas,
       capacity,
       config,
       nextIndex: 0,
@@ -122,8 +151,9 @@ export class Renderer3D {
     const sys = this.particleSystems.get(systemId);
     if (!sys) return;
 
-    const { positions, velocities, lifetimes, colors, sizes, capacity } = sys;
+    const { positions, velocities, lifetimes, maxLifetimes, colors, sizes, alphas, capacity } = sys;
     const color = emitterConfig.color ?? [1, 1, 1];
+    const life = emitterConfig.life ?? 2;
 
     for (let i = 0; i < count; i++) {
       const idx = sys.nextIndex % capacity;
@@ -142,7 +172,8 @@ export class Renderer3D {
       velocities[i3 + 2] = (emitterConfig.vz ?? 0) + (Math.random() - 0.5) * (emitterConfig.velocitySpread ?? 1);
 
       // Lifetime
-      lifetimes[idx] = emitterConfig.life ?? 2;
+      lifetimes[idx] = life;
+      maxLifetimes[idx] = life;
 
       // Color
       colors[i3] = color[0];
@@ -151,22 +182,29 @@ export class Renderer3D {
 
       // Size
       sizes[idx] = emitterConfig.size ?? 0.05;
+
+      // Alpha (full at birth)
+      alphas[idx] = emitterConfig.opacity ?? 1.0;
     }
 
     sys.geometry.attributes.position.needsUpdate = true;
-    sys.geometry.attributes.color.needsUpdate = true;
-    sys.geometry.attributes.size.needsUpdate = true;
+    sys.geometry.attributes.aColor.needsUpdate = true;
+    sys.geometry.attributes.aSize.needsUpdate = true;
+    sys.geometry.attributes.aAlpha.needsUpdate = true;
   }
 
   updateParticles(systemId, dt) {
     const sys = this.particleSystems.get(systemId);
     if (!sys) return;
 
-    const { positions, velocities, lifetimes, colors, capacity } = sys;
+    const { positions, velocities, lifetimes, maxLifetimes, colors, alphas, capacity } = sys;
     const gravity = sys.config.gravity ?? 0;
 
     for (let i = 0; i < capacity; i++) {
-      if (lifetimes[i] <= 0) continue;
+      if (lifetimes[i] <= 0) {
+        alphas[i] = 0;
+        continue;
+      }
       lifetimes[i] -= dt;
 
       const i3 = i * 3;
@@ -175,15 +213,14 @@ export class Renderer3D {
       positions[i3 + 1] += velocities[i3 + 1] * dt;
       positions[i3 + 2] += velocities[i3 + 2] * dt;
 
-      // Fade color based on remaining life
-      const t = Math.max(0, lifetimes[i] / (sys.config.life ?? 2));
-      colors[i3] *= (0.99 + 0.01 * t);
-      colors[i3 + 1] *= (0.99 + 0.01 * t);
-      colors[i3 + 2] *= (0.99 + 0.01 * t);
+      // Fade alpha based on remaining life
+      const t = maxLifetimes[i] > 0 ? Math.max(0, lifetimes[i] / maxLifetimes[i]) : 0;
+      alphas[i] = t;
     }
 
     sys.geometry.attributes.position.needsUpdate = true;
-    sys.geometry.attributes.color.needsUpdate = true;
+    sys.geometry.attributes.aColor.needsUpdate = true;
+    sys.geometry.attributes.aAlpha.needsUpdate = true;
   }
 
   removeParticleSystem(systemId) {
