@@ -149,6 +149,7 @@ export async function createGame(userConfig = {}) {
   });
 
   // Ready promise — resolved at end of createGame (NOT in start)
+  // Fix #2: Promise создаётся ДО объекта game, но executor НЕ обращается к game (избегаем TDZ)
   let _readyResolveFn = null;
   const _readyPromise = new Promise((resolve) => { _readyResolveFn = resolve; });
 
@@ -497,5 +498,4 @@ export { createEventBus } from './events.js';
 export { createSaveManager } from './save.js';
 export { Pool } from './pool.js';
 export { SpatialHash } from './spatial-hash.js';
-export { createAnimator, createStateMachine } from './animation.js';
 export { createAnimator, createStateMachine } from './animation.js';
