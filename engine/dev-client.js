@@ -5,6 +5,9 @@
  */
 (async function() {
   try {
+    // Only run on dev server (port 8080) to avoid 404 noise on Vite/python3
+    if (window.location.port !== '8080') return;
+    
     // Check if dev server is running
     const res = await fetch('/__reload/ping', { method: 'HEAD' });
     if (res.status !== 200) return;
