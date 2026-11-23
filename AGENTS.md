@@ -1,7 +1,34 @@
 # web-game-forge — команда агентов
 
-Этот файл — карта агентской среды в `.opencode/`. Прочитай его первым, затем
-`rules.md` (конвенции) и `main-agent.md` (рабочий цикл главного агента).
+Этот файл — карта агентской среды. Конфиг OpenCode v1 — `opencode.json` в корне;
+он подключает этот файл как инструкции, промт главного агента и правила ниже.
+Прочитай его первым, затем `.opencode/prompts/rules.md` (конвенции) и
+`.opencode/prompts/main-agent.md` (рабочий цикл).
+
+## Раскладка и что реально читает OpenCode
+
+```text
+opencode.json                     # конфиг v1: default_agent, agent, permission, mcp
+AGENTS.md                         # инструкции (авто-обнаружение)
+.opencode/
+  prompts/rules.md                # инструкции из opencode.json → instructions
+  prompts/main-agent.md           # prompt главного агента ({file:...})
+  agents/<role>.md                # субагенты: frontmatter + системный промт
+  plugins/sdd-reindex.js          # file.edited → пересборка индекса
+  memory.json  openspec/  vector-index/  scripts/  sdd.json
+```
+
+- OpenCode v1 читает `opencode.json` в корне, `AGENTS.md` и файлы из
+  `.opencode/agents/` и `.opencode/plugins/`. Каталог `.opencode/prompts/` —
+  просто файлы, на которые ссылаются `instructions` и `prompt`.
+- Права субагентов заданы в YAML-frontmatter их markdown-файлов: это источник
+  истины для OpenCode. Таблица ниже — сводка для человека; при расхождении
+  правь frontmatter.
+- `opencode.json` валидируется схемой OpenCode. Не добавляй туда свои ключи
+  (`hooks`, `sdd`, `vectorIndex`) — они игнорируются. Метаданные среды лежат в
+  `.opencode/sdd.json`.
+- Хуков в конфиге v1 нет. Автоматизация — только плагин; память закрывает
+  main-агент командой `memory.mjs end`.
 
 ## Проект в одном абзаце
 
@@ -41,36 +68,36 @@ node .opencode/openspec/validate.mjs
 
 ## Состав команды
 
-### `main` (primary, `.opencode/agents/main-agent.md`)
+### `main` (primary, `opencode.json` → `.opencode/prompts/main-agent.md`)
 Оркестратор. Принимает запрос, читает память и индекс, пишет spec/contract/dod,
 делегирует работу, проверяет отчёты, обновляет `CHANGELOG.md`, память и
 пересобирает индекс. Единственный, кто пишет `.opencode/**` (кроме
 `openspec/work/**`), `README.md`, `CHANGELOG.md`.
 
-### `engine-core` (`.opencode/agents/sub-agents/engine-core.md`)
+### `engine-core` (`.opencode/agents/engine-core.md`)
 Владелец рантайма `engine/**`. Отвечает за API `createGame()`, подсистемы, цикл,
 рендереры, частицы, твины, ввод, сцены, HUD, сохранения. Не трогает конфиги
 (`engine/config.js`, `engine/json5-loader.js` — зона `config-data`), примеры,
 тесты и скрипты. Новые зависимости не добавляет.
 
-### `prototype-dev` (`.opencode/agents/sub-agents/prototype-dev.md`)
+### `prototype-dev` (`.opencode/agents/prototype-dev.md`)
 Собирает прототипы и примеры: `examples/**` (кроме `_smoke.html`),
 `templates/**`, `prototypes/**`. Пишет только игровую логику и разметку поверх
 публичного API. Если движка не хватает — оформляет запрос контрактом, а не
 патчит `engine/`.
 
-### `config-data` (`.opencode/agents/sub-agents/config-data.md`)
+### `config-data` (`.opencode/agents/config-data.md`)
 Владелец данных и конфигурации: `config/**`, `engine/config.js`
 (`DEFAULT_CONFIG`), `engine/json5-loader.js`, `prototypes/*/config.json5`.
 Следит за `$extend`, семантикой `deepMerge` (массивы заменяются), балансом
 частиц/шейдеров и обратной совместимостью дефолтов.
 
-### `qa-regression` (`.opencode/agents/sub-agents/qa-regression.md`)
+### `qa-regression` (`.opencode/agents/qa-regression.md`)
 Владелец качества: `examples/_smoke.html` и `scripts/verify.sh`. Пишет
 регрессионные проверки, воспроизводит баги, но не правит движок — сообщает о
 дефектах через spec/report. Ослаблять проверки запрещено.
 
-### `tooling-release` (`.opencode/agents/sub-agents/tooling-release.md`)
+### `tooling-release` (`.opencode/agents/tooling-release.md`)
 Инструменты и поставка: `scripts/**` (кроме `verify.sh`), `templates/**`
 (шаблон прототипа), корневой `index.html`, `.opencode/scripts/**`. Отвечает за
 `dev.sh`, `export.sh`, `new-game.sh`, `fetch-assets.sh`, `setup.sh`, `dist/`.
@@ -136,6 +163,7 @@ node .opencode/scripts/memory.mjs show                 # память
 node --check engine/<file>.js                          # синтаксис одного модуля
 bash scripts/verify.sh                                 # HTTP 200 для всех примеров
 node .opencode/openspec/validate.mjs                   # документы OpenSpec
+node .opencode/scripts/check-env.mjs                   # конфиг, агенты, пути SDD
 
 # ассеты (без MCP)
 bash .opencode/scripts/fetch-assets.sh https://example.com/sprite.png assets/tex/sprite.png
@@ -153,3 +181,4 @@ bash .opencode/scripts/setup.sh
 - Правка `src/**`, `node_modules/**`, `.env*`, `.git/**`.
 - `git push`, `git reset --hard`, `git clean -fd` без явной просьбы пользователя.
 - Изменение проверок ради «зелёного» результата.
+- Самодельные ключи в `opencode.json` (`hooks`, `sdd`, …): схема v1 их не знает.

@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "project": "web-game-forge",
+  "note": "Не читается OpenCode. Метаданные SDD-среды для агентов, setup.sh и check-env.mjs. Конфиг самого OpenCode — opencode.json в корне.",
+  "agents": {
+    "primary": "main",
+    "subagents": ["engine-core", "prototype-dev", "config-data", "qa-regression", "tooling-release"],
+    "dir": ".opencode/agents"
+  },
+  "docs": {
+    "instructions": "AGENTS.md",
+    "rules": ".opencode/prompts/rules.md",
+    "mainPrompt": ".opencode/prompts/main-agent.md"
+  },
+  "openspec": {
+    "schema": ".opencode/openspec/schema.json",
+    "validator": ".opencode/openspec/validate.mjs",
+    "templates": ".opencode/openspec/templates",
+    "workDir": ".opencode/openspec/work",
+    "language": "OpenSpec 1.0 (JSON documents)"
+  },
+  "memory": {
+    "file": ".opencode/memory.json",
+    "cli": ".opencode/scripts/memory.mjs"
+  },
+  "vectorIndex": {
+    "db": ".opencode/vector-index/index.db",
+    "module": ".opencode/vector-index/index.mjs",
+    "build": ".opencode/vector-index/reindex.sh",
+    "search": ".opencode/vector-index/search.sh",
+    "roots": ["engine", "config", "examples", "scripts"]
+  },
+  "assets": {
+    "fetch": ".opencode/scripts/fetch-assets.sh",
+    "outDir": "assets",
+    "runtime": "engine/assets.js (PixiJS Assets / Three.js loaders)"
+  },
+  "automation": {
+    "plugin": ".opencode/plugins/sdd-reindex.js",
+    "events": ["file.edited"],
+    "description": "Пересобирает векторный индекс после правок файлов. Запись памяти остаётся явным шагом main-агента: в v1 нет события конца сессии."
+  }
+}

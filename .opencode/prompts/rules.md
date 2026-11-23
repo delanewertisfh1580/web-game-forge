@@ -135,9 +135,12 @@
 - Начало сессии: `node .opencode/scripts/memory.mjs show`.
 - Перед правкой незнакомого места: `bash .opencode/vector-index/search.sh "<термины>"`.
 - После структурных изменений (`engine/`, `config/`, `examples/`, `scripts/`):
-  `bash .opencode/vector-index/reindex.sh --quiet`.
-- Конец сессии: `node .opencode/scripts/memory.mjs end --auto` (хук
-  `session.end`), плюс при необходимости:
+  `bash .opencode/vector-index/reindex.sh --quiet`. Плагин
+  `.opencode/plugins/sdd-reindex.js` пересобирает индекс автоматически на
+  `file.edited` (с дебаунсом), но ручной прогон перед сдачей всё равно обязателен.
+- Конец задачи: `node .opencode/scripts/memory.mjs end --auto`. В OpenCode v1 нет
+  события конца сессии, поэтому это явный шаг main-агента, а не хук. Плюс при
+  необходимости:
   ```bash
   node .opencode/scripts/memory.mjs fact "…" --source path/to/file
   node .opencode/scripts/memory.mjs decision --title "…" --decision "…"

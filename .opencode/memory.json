@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-23T11:57:28.637Z",
+  "updatedAt": "2026-11-23T12:11:40.376Z",
   "project": {
     "name": "web-game-forge",
     "root": ".",
@@ -74,6 +74,12 @@
       "fact": "engine/index.js is the single public surface: createGame() plus re-exports of every subsystem factory; new public APIs must be re-exported and documented in README.md.",
       "source": "engine/index.js",
       "addedAt": "2026-11-23T00:00:00.000Z"
+    },
+    {
+      "id": "F-009",
+      "fact": "OpenCode v1 читает opencode.json в корне, AGENTS.md и .opencode/agents|plugins; .opencode/config.json игнорируется, ключей hooks/sdd в схеме нет.",
+      "source": "opencode.json",
+      "addedAt": "2026-11-23T12:09:44.736Z"
     }
   ],
   "decisions": [
@@ -84,6 +90,14 @@
       "context": "The project is deliberately buildless and minimal; adding MCP servers, embedding services or a vector database would contradict its constraints.",
       "decision": "Use plain Node.js for the TF-IDF index and memory CLI, OpenSpec JSON documents as the agent-to-agent language, and bash+curl for asset fetching.",
       "consequences": "Zero new dependencies; the index is a rebuildable JSON artifact and is gitignored. Agents must use .opencode/vector-index/reindex.sh after structural edits."
+    },
+    {
+      "id": "D-002",
+      "date": "2026-11-23T12:09:44.708Z",
+      "title": "Конфигурация переведена на схему OpenCode v1",
+      "context": "Установлена v1: .opencode/config.json не читается, hooks и произвольные ключи схемой не поддерживаются.",
+      "decision": "opencode.json в корне (agent/permission/instructions/mcp), субагенты — .opencode/agents/*.md с YAML-frontmatter, промты в .opencode/prompts/, автоиндексация — плагин .opencode/plugins/sdd-reindex.js.",
+      "consequences": "Права агентов теперь задаются frontmatter, а не отдельным конфигом; память закрывается явной командой, так как в v1 нет события конца сессии."
     }
   ],
   "sessions": [

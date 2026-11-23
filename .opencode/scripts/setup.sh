@@ -2,8 +2,8 @@
 # setup.sh — initialize the web-game-forge agent environment.
 #
 # Idempotent: safe to run after pulling changes or on a fresh checkout.
-# Checks tooling, fixes exec bits, validates OpenSpec documents, initializes
-# agent memory and builds the local code index.
+# Checks tooling, fixes exec bits, validates the OpenCode v1 config and OpenSpec
+# documents, initializes agent memory and builds the local code index.
 #
 # Usage:
 #   bash .opencode/scripts/setup.sh
@@ -57,9 +57,9 @@ command -v git > /dev/null 2>&1 && ok "git (session auto-summary)" || warn "git 
 
 echo
 bold "2. Directories"
-mkdir -p .opencode/vector-index .opencode/openspec/work .opencode/openspec/templates .opencode/agents/sub-agents .opencode/scripts assets
+mkdir -p .opencode/vector-index .opencode/openspec/work .opencode/openspec/templates .opencode/agents .opencode/prompts .opencode/plugins .opencode/scripts assets
 ok "engine/, config/, examples/, scripts/ present"
-ok ".opencode/{vector-index,openspec/work,openspec/templates,agents/sub-agents,scripts}"
+ok ".opencode/{agents,prompts,plugins,vector-index,openspec,scripts}"
 ok "assets/ (downloaded runtime assets, gitignored)"
 
 echo
@@ -88,7 +88,16 @@ else
 fi
 
 echo
-bold "5. OpenSpec documents"
+bold "5. OpenCode config (v1 schema)"
+if node .opencode/scripts/check-env.mjs; then
+  ok "opencode.json, agents and sdd.json are consistent"
+else
+  bad "configuration check failed — fix opencode.json / .opencode/agents/"
+  exit 1
+fi
+
+echo
+bold "6. OpenSpec documents"
 if node .opencode/openspec/validate.mjs; then
   ok "schema and templates are consistent"
 else
@@ -98,11 +107,11 @@ fi
 
 echo
 if [ "$BUILD_INDEX" -eq 1 ]; then
-  bold "6. Code index"
+  bold "7. Code index"
   bash .opencode/vector-index/reindex.sh
   ok "query with: .opencode/vector-index/search.sh \"<terms>\""
 else
-  bold "6. Code index"
+  bold "7. Code index"
   warn "skipped (--no-index)"
 fi
 
@@ -118,6 +127,8 @@ Typical loop:
   bash scripts/verify.sh
   node .opencode/scripts/memory.mjs end --auto
 
-Agents: .opencode/agents/AGENTS.md
-Rules:  .opencode/agents/rules.md
+Config:  opencode.json (OpenCode v1)
+Agents:  AGENTS.md (root) + .opencode/agents/*.md
+Main:    .opencode/prompts/main-agent.md
+Rules:   .opencode/prompts/rules.md
 EOF

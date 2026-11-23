@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "main",
+  "instructions": [".opencode/prompts/rules.md"],
+  "agent": {
+    "main": {
+      "description": "SDD-оркестратор web-game-forge: пишет спецификации OpenSpec, делегирует субагентам, принимает работу по DoD.",
+      "mode": "primary",
+      "temperature": 0.2,
+      "prompt": "{file:./.opencode/prompts/main-agent.md}",
+      "permission": {
+        "edit": "allow",
+        "bash": {
+          "*": "allow",
+          "git push": "ask",
+          "git reset --hard": "deny",
+          "git clean -fd": "deny",
+          "rm -rf *": "deny"
+        }
+      }
+    }
+  },
+  "permission": {
+    "edit": "ask"
+  },
+  "mcp": {}
+}

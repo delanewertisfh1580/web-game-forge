@@ -9,8 +9,8 @@
 #   .opencode/vector-index/reindex.sh --roots engine,examples
 #   .opencode/vector-index/reindex.sh --quiet
 #
-# Runs automatically on file edits when the agent runner supports the
-# `file.edited` hook declared in .opencode/config.json.
+# Runs automatically on file edits through .opencode/plugins/sdd-reindex.js
+# (OpenCode v1 `file.edited` event, debounced).
 
 set -euo pipefail
 
