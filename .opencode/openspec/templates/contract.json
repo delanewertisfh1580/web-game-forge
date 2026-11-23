@@ -1,0 +1,32 @@
+{
+  "openspec": "1.0",
+  "kind": "contract",
+  "id": "CONTRACT-000",
+  "spec": "SPEC-000",
+  "from": "main",
+  "to": "engine-core",
+  "createdAt": "2026-01-01T00:00:00Z",
+  "deliverables": [
+    {
+      "path": "engine/index.js",
+      "change": "modify",
+      "interface": "game.newApi(options) -> Promise<result>; documented in README public API table"
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "game.newApi",
+      "signature": "newApi(options: object): Promise<object>",
+      "notes": "Throws on invalid mode; resolves only after assets load."
+    }
+  ],
+  "invariants": [
+    "createGame() keeps its current signature and default behaviour.",
+    "Every subsystem still cleans up in game.destroy().",
+    "No dependency on a bundler, TypeScript, or new CDN packages."
+  ],
+  "outOfScope": [
+    "UI styling of HUD elements",
+    "Changing existing example gameplay"
+  ]
+}

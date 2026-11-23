@@ -1,0 +1,6 @@
+# Derived artifacts — rebuild with .opencode/vector-index/reindex.sh
+/vector-index/index.db
+/vector-index/*.tmp
+
+# Downloaded runtime assets (fetch-assets.sh default output)
+/assets/

@@ -1,0 +1,35 @@
+{
+  "openspec": "1.0",
+  "kind": "report",
+  "id": "REPORT-000",
+  "spec": "SPEC-000",
+  "agent": "engine-core",
+  "status": "done",
+  "startedAt": "2026-01-01T00:00:00Z",
+  "endedAt": "2026-01-01T00:30:00Z",
+  "summary": "What was implemented, how it maps to the spec requirements, and what a reviewer should look at first.",
+  "changes": [
+    {
+      "path": "engine/index.js",
+      "change": "modify",
+      "description": "Added newApi(), wired cleanup in destroy(), re-exported nothing new."
+    }
+  ],
+  "verification": [
+    {
+      "command": "node --check engine/index.js",
+      "result": "pass",
+      "notes": "Syntax check only."
+    },
+    {
+      "command": "bash scripts/verify.sh",
+      "result": "pass",
+      "notes": "7 examples + 0 prototypes returned HTTP 200."
+    }
+  ],
+  "deviations": [],
+  "followUps": [
+    "qa-regression: add a smoke assertion for newApi()"
+  ],
+  "memoryUpdated": true
+}

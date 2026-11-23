@@ -1,0 +1,43 @@
+{
+  "openspec": "1.0",
+  "kind": "dod",
+  "id": "DOD-000",
+  "spec": "SPEC-000",
+  "createdAt": "2026-01-01T00:00:00Z",
+  "items": [
+    {
+      "id": "D1",
+      "criterion": "Every must-requirement from the spec has concrete evidence (file, line range, or command output).",
+      "required": true,
+      "evidence": "reports/REPORT-000.json verification entries"
+    },
+    {
+      "id": "D2",
+      "criterion": "Only paths inside the agent's write scope were modified.",
+      "required": true,
+      "evidence": "git status --porcelain"
+    },
+    {
+      "id": "D3",
+      "criterion": "Verification commands were actually executed and pass; skipped checks are listed as limitations.",
+      "required": true,
+      "evidence": "REPORT-000.json verification results"
+    },
+    {
+      "id": "D4",
+      "criterion": "Memory updated (decision/fact) and index rebuilt after structural edits.",
+      "required": false,
+      "evidence": "node .opencode/scripts/memory.mjs show"
+    }
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/verify.sh",
+      "required": true
+    },
+    {
+      "command": "node .opencode/openspec/validate.mjs",
+      "required": true
+    }
+  ]
+}

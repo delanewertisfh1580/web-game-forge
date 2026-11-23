@@ -1,0 +1,51 @@
+{
+  "openspec": "1.0",
+  "kind": "spec",
+  "id": "SPEC-000",
+  "title": "Short imperative title",
+  "status": "draft",
+  "area": "engine",
+  "owner": "main",
+  "createdAt": "2026-01-01T00:00:00Z",
+  "updatedAt": "2026-01-01T00:00:00Z",
+  "summary": "One paragraph: the problem, why it matters, and the intended outcome.",
+  "context": "Relevant files, prior decisions (memory ids), and links to related specs/contracts.",
+  "requirements": [
+    {
+      "id": "R1",
+      "text": "The engine must ... (observable behaviour, not implementation detail).",
+      "priority": "must"
+    },
+    {
+      "id": "R2",
+      "text": "Existing prototypes must keep working unchanged.",
+      "priority": "should"
+    }
+  ],
+  "constraints": [
+    "No build step: native ES modules and import maps only.",
+    "No new runtime dependencies; CDN versions stay pinned.",
+    "No MCP servers; assets are fetched with .opencode/scripts/fetch-assets.sh."
+  ],
+  "nonGoals": [
+    "Refactors outside the affected paths."
+  ],
+  "affectedPaths": [
+    "engine/index.js"
+  ],
+  "verification": [
+    {
+      "kind": "command",
+      "command": "bash scripts/verify.sh",
+      "expect": "exit code 0, all examples return HTTP 200"
+    },
+    {
+      "kind": "manual",
+      "command": "open examples/_smoke.html via scripts/dev.sh",
+      "expect": "all smoke assertions green, no console errors"
+    }
+  ],
+  "contracts": ["CONTRACT-000"],
+  "dod": "DOD-000",
+  "memoryRefs": ["F-001", "D-001"]
+}

@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://web-game-forge.local/openspec/schema.json",
+  "title": "OpenSpec 1.0 — web-game-forge",
+  "description": "Agent-to-agent specification language. A document is one of: spec (task specification), contract (handoff between agents), report (execution report), dod (definition of done). Documents live in .opencode/openspec/work/ and are validated by validate.mjs.",
+  "$ref": "#/$defs/document",
+  "$defs": {
+    "openspec": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "specId": {
+      "type": "string",
+      "pattern": "^SPEC-[A-Z0-9-]+$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*-[A-Z0-9-]+$"
+    },
+    "agent": {
+      "type": "string",
+      "enum": ["main", "engine-core", "prototype-dev", "config-data", "qa-regression", "tooling-release"]
+    },
+    "area": {
+      "type": "string",
+      "enum": ["engine", "config", "prototypes", "qa", "tooling", "docs"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "ready", "in_progress", "blocked", "done", "rejected"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verificationStep": {
+      "type": "object",
+      "required": ["kind", "expect"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["command", "smoke", "manual", "contract"] },
+        "command": { "type": "string", "minLength": 1 },
+        "expect": { "type": "string", "minLength": 1 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": [
+        "openspec",
+        "kind",
+        "id",
+        "title",
+        "status",
+        "area",
+        "owner",
+        "createdAt",
+        "summary",
+        "requirements",
+        "affectedPaths",
+        "verification",
+        "dod"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "openspec": { "$ref": "#/$defs/openspec" },
+        "kind": { "const": "spec" },
+        "id": { "$ref": "#/$defs/specId" },
+        "title": { "type": "string", "minLength": 3 },
+        "status": { "$ref": "#/$defs/status" },
+        "area": { "$ref": "#/$defs/area" },
+        "owner": { "$ref": "#/$defs/agent" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "summary": { "type": "string", "minLength": 10 },
+        "context": { "type": "string" },
+        "requirements": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "text", "priority"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^R[0-9]+$" },
+              "text": { "type": "string", "minLength": 3 },
+              "priority": { "type": "string", "enum": ["must", "should", "could"] }
+            }
+          }
+        },
+        "constraints": { "type": "array", "items": { "type": "string" } },
+        "nonGoals": { "type": "array", "items": { "type": "string" } },
+        "affectedPaths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "verification": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/verificationStep" }
+        },
+        "contracts": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "dod": { "$ref": "#/$defs/id" },
+        "memoryRefs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "required": ["openspec", "kind", "id", "spec", "from", "to", "createdAt", "deliverables", "invariants"],
+      "additionalProperties": false,
+      "properties": {
+        "openspec": { "$ref": "#/$defs/openspec" },
+        "kind": { "const": "contract" },
+        "id": { "$ref": "#/$defs/id" },
+        "spec": { "$ref": "#/$defs/specId" },
+        "from": { "$ref": "#/$defs/agent" },
+        "to": { "$ref": "#/$defs/agent" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "deliverables": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["path", "change", "interface"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "change": { "type": "string", "enum": ["create", "modify", "delete"] },
+              "interface": { "type": "string", "minLength": 3 }
+            }
+          }
+        },
+        "interfaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "signature"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "signature": { "type": "string", "minLength": 3 },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "invariants": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 3 }
+        },
+        "outOfScope": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "report": {
+      "type": "object",
+      "required": [
+        "openspec",
+        "kind",
+        "id",
+        "spec",
+        "agent",
+        "status",
+        "startedAt",
+        "endedAt",
+        "summary",
+        "changes",
+        "verification",
+        "memoryUpdated"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "openspec": { "$ref": "#/$defs/openspec" },
+        "kind": { "const": "report" },
+        "id": { "$ref": "#/$defs/id" },
+        "spec": { "$ref": "#/$defs/specId" },
+        "agent": { "$ref": "#/$defs/agent" },
+        "status": { "type": "string", "enum": ["done", "partial", "blocked"] },
+        "startedAt": { "$ref": "#/$defs/timestamp" },
+        "endedAt": { "$ref": "#/$defs/timestamp" },
+        "summary": { "type": "string", "minLength": 10 },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "change", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "change": { "type": "string", "enum": ["create", "modify", "delete"] },
+              "description": { "type": "string", "minLength": 3 }
+            }
+          }
+        },
+        "verification": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["command", "result"],
+            "additionalProperties": false,
+            "properties": {
+              "command": { "type": "string", "minLength": 1 },
+              "result": { "type": "string", "enum": ["pass", "fail", "skipped"] },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "deviations": { "type": "array", "items": { "type": "string" } },
+        "followUps": { "type": "array", "items": { "type": "string" } },
+        "memoryUpdated": { "type": "boolean" }
+      }
+    },
+    "dod": {
+      "type": "object",
+      "required": ["openspec", "kind", "id", "spec", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "openspec": { "$ref": "#/$defs/openspec" },
+        "kind": { "const": "dod" },
+        "id": { "$ref": "#/$defs/id" },
+        "spec": { "$ref": "#/$defs/specId" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "criterion", "required"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^D[0-9]+$" },
+              "criterion": { "type": "string", "minLength": 5 },
+              "required": { "type": "boolean" },
+              "evidence": { "type": "string" }
+            }
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["command", "required"],
+            "additionalProperties": false,
+            "properties": {
+              "command": { "type": "string", "minLength": 1 },
+              "required": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "document": {
+      "oneOf": [
+        { "$ref": "#/$defs/spec" },
+        { "$ref": "#/$defs/contract" },
+        { "$ref": "#/$defs/report" },
+        { "$ref": "#/$defs/dod" }
+      ]
+    }
+  }
+}

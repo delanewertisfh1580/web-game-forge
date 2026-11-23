@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-23T11:57:28.637Z",
+  "project": {
+    "name": "web-game-forge",
+    "root": ".",
+    "engineAlias": "my-engine",
+    "summary": "Buildless engine for HTML game prototypes on native ES modules; one HTML file per prototype wired to engine/ via import maps.",
+    "stack": [
+      "JavaScript (native ES modules, no build step)",
+      "PixiJS 8.6.6 (2D)",
+      "Three.js 0.170.0 (3D)",
+      "JSON5 2.2.3 configs with $extend",
+      "GSAP 3.12.5 (optional)",
+      "bash + python3 scripts"
+    ],
+    "modules": 23,
+    "examples": 7
+  },
+  "context": {
+    "currentTask": null,
+    "openQuestions": [],
+    "nextSteps": [
+      "Adopt OpenSpec flow: every non-trivial change starts as openspec/work/SPEC-*.json",
+      "Keep examples/_smoke.html green after engine changes",
+      "Reindex after structural edits: .opencode/vector-index/reindex.sh"
+    ]
+  },
+  "longTermFacts": [
+    {
+      "id": "F-001",
+      "fact": "There is no build step: prototypes load the engine through an import map with the 'my-engine' alias pointing at engine/index.js.",
+      "source": "README.md",
+      "addedAt": "2026-11-23T00:00:00.000Z"
+    },
+    {
+      "id": "F-002",
+      "fact": "CDN versions are pinned: pixi.js 8.6.6, three 0.170.0, gsap 3.12.5, json5 2.2.3 (jsdelivr). Do not float versions.",
+      "source": "README.md",
+      "addedAt": "2026-11-23T00:00:00.000Z"
+    },
+    {
+      "id": "F-003",
+      "fact": "Configs are JSON5 and support $extend for inheritance. deepMerge (engine/utils/deep-merge.js) replaces arrays instead of merging them.",
+      "source": "engine/utils/deep-merge.js",
+      "addedAt": "2026-11-23T00:00:00.000Z"
+    },
+    {
+      "id": "F-004",
+      "fact": "PixiJS v8 specifics: Application.init() is async; sprite-sheet animations live on texture.animations (not texture.baseTexture); destroy(true, { children: true }) is wrapped in try/catch.",
+      "source": "engine/renderer2d.js",
+      "addedAt": "2026-11-23T00:00:00.000Z"
+    },
+    {
+      "id": "F-005",
+      "fact": "Static HTTP server is mandatory; file:// fails because ES modules and import maps require CORS. Use scripts/dev.sh or python3 -m http.server.",
+      "source": "README.md",
+      "addedAt": "2026-11-23T00:00:00.000Z"
+    },
+    {
+      "id": "F-006",
+      "fact": "scripts/verify.sh starts python3 http.server on a free port and asserts HTTP 200 for every examples/*.html and prototypes/*/index.html.",
+      "source": "scripts/verify.sh",
+      "addedAt": "2026-11-23T00:00:00.000Z"
+    },
+    {
+      "id": "F-007",
+      "fact": "The Vite/React app in src/, index.html and the React dependency list in package.json are Freebuff sandbox scaffolding and are not part of the engine. Engine work must not modify them.",
+      "source": "package.json",
+      "addedAt": "2026-11-23T00:00:00.000Z"
+    },
+    {
+      "id": "F-008",
+      "fact": "engine/index.js is the single public surface: createGame() plus re-exports of every subsystem factory; new public APIs must be re-exported and documented in README.md.",
+      "source": "engine/index.js",
+      "addedAt": "2026-11-23T00:00:00.000Z"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D-001",
+      "date": "2026-11-23T00:00:00.000Z",
+      "title": "Adopt a dependency-free local SDD environment under .opencode/",
+      "context": "The project is deliberately buildless and minimal; adding MCP servers, embedding services or a vector database would contradict its constraints.",
+      "decision": "Use plain Node.js for the TF-IDF index and memory CLI, OpenSpec JSON documents as the agent-to-agent language, and bash+curl for asset fetching.",
+      "consequences": "Zero new dependencies; the index is a rebuildable JSON artifact and is gitignored. Agents must use .opencode/vector-index/reindex.sh after structural edits."
+    }
+  ],
+  "sessions": [
+    {
+      "id": "S-20261123-01",
+      "agent": "main",
+      "startedAt": "2026-11-23T11:56:11.023Z",
+      "endedAt": "2026-11-23T11:56:11.054Z",
+      "summary": "Создана SDD-среда .opencode: индекс, память, OpenSpec, агенты, скрипты",
+      "changedFiles": [],
+      "decisions": [],
+      "followUps": [],
+      "task": "SDD environment bootstrap"
+    }
+  ]
+}
